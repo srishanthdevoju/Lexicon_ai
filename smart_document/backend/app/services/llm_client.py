@@ -57,7 +57,8 @@ class LLMClient:
         self,
         messages: list,
         response_format: dict = None,
-        temperature: float = 0.2
+        temperature: float = 0.2,
+        seed: int = None
     ) -> str:
         """
         Creates chat completions with retry, key rotation on 429, and robust error handling.
@@ -91,6 +92,8 @@ class LLMClient:
                 }
                 if response_format:
                     kwargs["response_format"] = response_format
+                if seed is not None:
+                    kwargs["seed"] = seed
 
                 response = await openai_client.chat.completions.create(**kwargs)
                 raw_content = response.choices[0].message.content
@@ -123,6 +126,16 @@ class LLMClient:
         """
         Calls OpenAI/Groq ChatCompletion in JSON mode to parse the document text.
         """
+        # Smart truncation for large documents to stay within free-tier TPM rate limits (e.g. 6,000 tokens)
+        max_chars = 14000
+        if len(document_text) > max_chars:
+            logger.warning(f"⚠️ Document text length ({len(document_text)} chars) exceeds safe threshold ({max_chars} chars) for TPM limits. Truncating document...")
+            document_text = (
+                document_text[:10000]
+                + "\n\n... [TRUNCATED MIDDLE CONTENT TO STAY WITHIN API RATE LIMITS] ...\n\n"
+                + document_text[-4000:]
+            )
+
         system_prompt = self._build_system_prompt()
         user_prompt = f"Here is the legal document to analyze:\n\n{document_text}"
 
@@ -134,7 +147,8 @@ class LLMClient:
         raw_content = await self.generate_response(
             messages=messages,
             response_format={"type": "json_object"},
-            temperature=0.1
+            temperature=0,
+            seed=42
         )
         return self._parse_response(raw_content)
 
@@ -167,7 +181,9 @@ class LLMClient:
             "    {\n"
             '      "title": "Short risk name",\n'
             '      "description": "Detailed explanation of the risk to the parties.",\n'
-            '      "severity": "High" | "Medium" | "Low"\n'
+            '      "severity": "High" | "Medium" | "Low",\n'
+            '      "mitigation": "Recommended actionable wording change, remediation, or action item to reduce/fix this risk.",\n'
+            '      "impact": "Potential negative business, operational, or legal consequence if this risk materializes."\n'
             "    }\n"
             "  ],\n"
             '  "clauses": [\n'
@@ -192,7 +208,7 @@ class LLMClient:
             "  }\n"
             "}\n\n"
             "Guidelines:\n"
-            "1. Extract all significant risks and categorize their severity as 'High', 'Medium', or 'Low'.\n"
+            "1. Extract all significant risks and categorize their severity as 'High', 'Medium', or 'Low'. For each risk, explicitly outline a concrete contract change or mitigation, and explain the potential legal/business impact.\n"
             "2. Extract key clauses and identify if they are 'Standard' or 'Non-Standard' "
             "(i.e. unusual, highly restrictive, or asymmetric terms).\n"
             "3. Identify internal inconsistencies or contradictions (e.g. Section 2 says net 30, but Section 5 says net 60; or different liability caps in different clauses). If none are found, return an empty array.\n"
@@ -224,6 +240,8 @@ class LLMClient:
                     title=str(risk.get("title", "Unspecified Risk")),
                     description=str(risk.get("description", "No description provided.")),
                     severity=str(risk.get("severity", "Low")),
+                    mitigation=str(risk.get("mitigation", "No mitigation wording proposed.")),
+                    impact=str(risk.get("impact", "Unspecified legal impact."))
                 ))
 
         # Clauses

@@ -8,7 +8,11 @@ import {
   Sparkles, 
   User, 
   Bot, 
-  ArrowUpRight
+  ArrowUpRight,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 
 export default function LegalAIChatbot() {
@@ -26,6 +30,124 @@ export default function LegalAIChatbot() {
   const [inputVal, setInputVal] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Voice States
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMsgId, setSpeakingMsgId] = useState(null);
+  const [voiceLang, setVoiceLang] = useState("en-US");
+  const recognitionRef = useRef(null);
+  const startInputRef = useRef("");
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    const SpeechRecognition = window.WindowsSpeechRecognition || window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = voiceLang;
+
+      rec.onstart = () => {
+        setIsListening(true);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      rec.onresult = (event) => {
+        let speechTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          speechTranscript += event.results[i][0].transcript;
+        }
+        if (speechTranscript) {
+          const base = startInputRef.current || "";
+          setInputVal(base + (base ? " " : "") + speechTranscript.trim());
+        }
+      };
+
+      rec.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Dynamically update recognition language on selection change
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = voiceLang;
+    }
+  }, [voiceLang]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Speech recognition is not supported in this browser. Please use Google Chrome, Edge, or Safari.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      try {
+        startInputRef.current = inputVal;
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error("Failed to start SpeechRecognition:", err);
+      }
+    }
+  };
+
+  const handleSpeak = (text, msgId) => {
+    if (!window.speechSynthesis) {
+      alert("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      if (speakingMsgId === msgId) {
+        setSpeakingMsgId(null);
+        return;
+      }
+    }
+
+    // Clean formatting characters to sound more natural
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, "[Code segment omitted]")
+      .replace(/[*_#\-`]/g, "");
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = voiceLang;
+
+    // Try finding matching language voice
+    if (window.speechSynthesis) {
+      const voices = window.speechSynthesis.getVoices();
+      const matchingVoice = voices.find(v => v.lang.startsWith(voiceLang.split('-')[0]));
+      if (matchingVoice) {
+        utterance.voice = matchingVoice;
+      }
+    }
+    
+    utterance.onend = () => {
+      setSpeakingMsgId(null);
+    };
+
+    utterance.onerror = () => {
+      setSpeakingMsgId(null);
+    };
+
+    setSpeakingMsgId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
 
   const suggestionChips = [
     "What is the termination clause?",
@@ -55,6 +177,12 @@ export default function LegalAIChatbot() {
     setMessages(prev => [...prev, userMsg]);
     setInputVal("");
     setIsTyping(true);
+
+    // Cancel text speech when sending new message
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+    }
 
     try {
       // Call real backend /chat endpoint
@@ -96,7 +224,7 @@ export default function LegalAIChatbot() {
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div>
-              <h1 className="text-md font-semibold text-primary">Lexicon AI Legal Assistant</h1>
+              <h1 className="text-md font-semibold text-primary">LexiconAI Legal Assistant</h1>
               <p className="text-[11px] text-text-secondary flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-risk-green rounded-full"></span>
                 <span>Contextualized to Document: {id?.substring(0, 8)}...</span>
@@ -134,8 +262,23 @@ export default function LegalAIChatbot() {
                   }`}>
                     {msg.content}
                   </div>
-                  <div className={`text-[10px] text-text-muted ${isAI ? "" : "text-right"}`}>
-                    {msg.time}
+                  <div className={`text-[10px] text-text-muted flex items-center gap-2 ${isAI ? "" : "justify-end"}`}>
+                    <span>{msg.time}</span>
+                    {isAI && (
+                      <button
+                        onClick={() => handleSpeak(msg.content, msg.id)}
+                        className={`p-1 rounded hover:bg-slate-100 transition-colors text-text-secondary hover:text-primary focus:outline-none flex items-center gap-0.5 ${
+                          speakingMsgId === msg.id ? "text-risk-blue animate-pulse" : ""
+                        }`}
+                        title={speakingMsgId === msg.id ? "Stop Speaking" : "Read Aloud"}
+                      >
+                        {speakingMsgId === msg.id ? (
+                          <VolumeX className="w-3.5 h-3.5" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -192,6 +335,29 @@ export default function LegalAIChatbot() {
               disabled={isTyping}
               className="flex-1 px-4 py-2 border border-border rounded text-[13px] text-primary placeholder-text-muted focus:outline-none focus:border-primary bg-white shadow-xs disabled:opacity-50"
             />
+            <select
+              value={voiceLang}
+              onChange={(e) => setVoiceLang(e.target.value)}
+              className="px-2 py-2 border border-border rounded text-[11px] font-semibold text-text-secondary bg-white focus:outline-none focus:border-primary shadow-xs"
+              title="Voice Language"
+            >
+              <option value="en-US">English</option>
+              <option value="te-IN">Telugu (తెలుగు)</option>
+              <option value="hi-IN">Hindi (हिन्दी)</option>
+            </select>
+            <button
+              type="button"
+              onClick={toggleListening}
+              disabled={isTyping}
+              className={`p-2 border border-border rounded transition-all duration-200 flex items-center justify-center shadow-xs disabled:opacity-50 ${
+                isListening 
+                  ? "bg-risk-red text-white border-risk-red animate-pulse scale-105" 
+                  : "bg-white text-text-secondary hover:text-primary hover:border-primary"
+              }`}
+              title={isListening ? "Listening... Click to Stop" : "Speak Query"}
+            >
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
             <button
               type="submit"
               disabled={isTyping || !inputVal.trim()}

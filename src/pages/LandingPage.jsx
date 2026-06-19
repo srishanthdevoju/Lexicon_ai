@@ -1,28 +1,28 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Scale, Shield, Zap, Search, ChevronRight, FileText, CheckCircle2 } from "lucide-react";
+import { useTranslation } from "@/lib/LanguageContext";
 
 export default function LandingPage() {
   const navigate = useNavigate();
-
-  const trustLogos = ["Winston & Strawn", "Cravath", "Skadden", "Latham & Watkins", "Kirkland & Ellis"];
+  const { lang, setLang, t } = useTranslation();
 
   const features = [
     {
       icon: Shield,
-      title: "Risk Analysis",
-      description: "Instantly highlight critical liability loopholes, overbroad covenants, and regulatory compliance flags."
+      title: t("feature1Title", "landing"),
+      description: t("feature1Desc", "landing")
     },
     {
       icon: Zap,
-      title: "Clause Extraction",
-      description: "Classify and extract standard clauses (confidentiality, payment, termination, jurisdiction) in seconds."
+      title: t("feature2Title", "landing"),
+      description: t("feature2Desc", "landing")
     },
     {
       icon: Search,
-      title: "Semantic Auditing",
-      description: "Locate missing definitions and mismatched references across multi-hundred page contracts."
+      title: t("feature3Title", "landing"),
+      description: t("feature3Desc", "landing")
     }
   ];
 
@@ -35,17 +35,28 @@ export default function LandingPage() {
           <span className="font-bold text-[15px] tracking-tight uppercase">Lexicon AI</span>
         </div>
         <div className="flex items-center gap-6">
+          {/* Global Language Selector Dropdown */}
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            className="px-2 py-1 bg-white border border-border rounded text-[11px] font-semibold text-text-secondary hover:border-primary focus:outline-none transition-all cursor-pointer shadow-xs mr-1"
+            title="Choose Language / భాషను ఎంచుకోండి / भाषा चुनें"
+          >
+            <option value="en">English</option>
+            <option value="te">తెలుగు</option>
+            <option value="hi">हिन्दी</option>
+          </select>
           <button 
             onClick={() => navigate("/login")}
             className="text-[13px] font-medium text-text-secondary hover:text-primary transition-colors"
           >
-            Sign In
+            {t("signIn", "landing")}
           </button>
           <button 
             onClick={() => navigate("/login")}
             className="px-4 py-1.5 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
           >
-            Get Started
+            {t("getStarted", "landing")}
           </button>
         </div>
       </header>
@@ -59,27 +70,21 @@ export default function LandingPage() {
           className="space-y-6"
         >
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-primary-100 text-primary border border-primary/10 text-[11px] font-semibold tracking-wider uppercase">
-            Enterprise Precision
+            {t("enterprisePrecision", "landing")}
           </div>
           <h1 className="text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-primary">
-            Legal-Grade Intelligence for Complex Contracts.
+            {t("title", "landing")}
           </h1>
           <p className="text-[15px] text-text-secondary leading-relaxed max-w-lg">
-            Lexicon AI automates the tedious manual review of legal documents, highlighting risks, mapping definitions, and extracting key clauses with 99.8% semantic accuracy. Built for the modern legal professional.
+            {t("subtitle", "landing")}
           </p>
           <div className="flex items-center gap-4 pt-2">
             <button 
               onClick={() => navigate("/login")}
               className="px-5 py-2.5 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors flex items-center gap-1.5"
             >
-              <span>Get Started</span>
+              <span>{t("getStarted", "landing")}</span>
               <ChevronRight className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => navigate("/login")}
-              className="px-5 py-2.5 bg-white border border-border text-text-secondary hover:text-primary hover:border-primary text-[13px] font-medium rounded transition-colors"
-            >
-              View Demo
             </button>
           </div>
         </motion.div>
@@ -170,30 +175,14 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* Trust Bar */}
-      <section className="bg-primary-50 border-y border-border py-8 text-center">
-        <div className="max-w-7xl mx-auto px-8">
-          <p className="text-[11px] text-text-secondary uppercase tracking-wider font-semibold mb-6">
-            Trusted by compliance teams and top-tier legal operations worldwide
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
-            {trustLogos.map((logo, idx) => (
-              <span key={idx} className="text-[13px] font-medium text-text-secondary tracking-tight">
-                {logo}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Feature Section */}
       <section className="py-20 px-8 max-w-7xl mx-auto">
         <div className="text-center max-w-xl mx-auto mb-16 space-y-2">
           <h2 className="text-2xl font-semibold tracking-tight text-primary">
-            Designed for High-Volume Corporate Intelligence
+            {t("featuresTitle", "landing")}
           </h2>
           <p className="text-[13px] text-text-secondary leading-relaxed">
-            Legal documents are complicated. Lexicon AI gives your teams the automated summaries, compliance warnings, and clause auditing structures required to execute transactions securely.
+            {t("featuresSubtitle", "landing")}
           </p>
         </div>
 
@@ -217,17 +206,17 @@ export default function LandingPage() {
       <section className="border-t border-border bg-primary text-white py-16 px-8 text-center">
         <div className="max-w-xl mx-auto space-y-6">
           <h2 className="text-2xl lg:text-3xl font-semibold tracking-tight">
-            Ready to secure your document audit workspace?
+            {t("ctaTitle", "landing")}
           </h2>
           <p className="text-[13px] text-text-muted leading-relaxed">
-            Deploy in minutes. Connect your corporate SSO, parse active contract databases, and begin legal-tech grade auditing immediately.
+            {t("ctaSubtitle", "landing")}
           </p>
           <div>
             <button 
               onClick={() => navigate("/login")}
               className="px-6 py-2.5 bg-white text-primary text-[13px] font-semibold rounded hover:bg-primary-100 transition-colors"
             >
-              Request Workspace Access
+              {t("requestAccess", "landing")}
             </button>
           </div>
         </div>
@@ -236,12 +225,12 @@ export default function LandingPage() {
       {/* Landing Footer */}
       <footer className="py-8 px-8 border-t border-border flex flex-col md:flex-row justify-between items-center max-w-7xl mx-auto w-full text-[11px] text-text-secondary gap-4">
         <div>
-          <span>© {new Date().getFullYear()} Juris Precision Systems Inc. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} {t("rightsReserved", "common")}</span>
         </div>
         <div className="flex items-center gap-6">
-          <a href="#privacy" className="hover:text-primary">Privacy Policy</a>
-          <a href="#terms" className="hover:text-primary">Terms of Service</a>
-          <a href="#security" className="hover:text-primary">Security Architecture</a>
+          <Link to="/privacy" className="hover:text-primary">{t("privacyPolicy", "common")}</Link>
+          <Link to="/terms" className="hover:text-primary">{t("termsOfService", "common")}</Link>
+          <Link to="/security" className="hover:text-primary">{t("securityArch", "common")}</Link>
         </div>
       </footer>
     </div>

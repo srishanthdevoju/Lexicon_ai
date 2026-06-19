@@ -2,6 +2,8 @@ import os
 import uuid
 import json
 import time
+import hashlib
+import asyncio
 import logging
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -28,7 +30,14 @@ from app.agents.risk_agent import RiskAgent
 from app.agents.clause_agent import ClauseAgent
 from app.agents.db_agent import DBAgent, MissingDBCredentialsError
 from app.services.report_generator import generate_report
-from app.models.schemas import FinalAnalysisResponse, AnalyzeTextRequest, LLMResponse
+from app.models.schemas import (
+    FinalAnalysisResponse, AnalyzeTextRequest, LLMResponse,
+    AppointmentResponse, AppointmentCreate, AppointmentUpdate,
+    ContactResponse, DirectMessageCreate, DirectMessageResponse,
+    LawyerResponse,
+    NoteCreate, NoteUpdate, NoteResponse,
+    MessageCreate, MessageResponse, ShareRequest
+)
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +189,28 @@ def get_user_info(request: Request):
 
 
 async def run_analysis_pipeline(document_id: str, filename: str, text: str, user_id: str = "default_user") -> FinalAnalysisResponse:
-    """Executes the core LLM analysis and agent-structure pipeline."""
+    """Executes the core LLM analysis and agent-structure pipeline.
+    Uses content hash caching: if the same text was analyzed before by this user, returns cached results."""
+
+    # 0. Content hash for deduplication / caching
+    content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    # Check for cached analysis with same content hash
+    try:
+        db_agent = DBAgent()
+        cached = await db_agent.find_analysis_by_hash(content_hash, user_id)
+        if cached:
+            logger.info(f"♻️  Cache HIT for content hash {content_hash[:12]}... — returning existing analysis {cached['document_id']}")
+            # Build response from cached data
+            txt_path = os.path.join(UPLOADS_DIR, f"{document_id}.txt")
+            json_path = os.path.join(UPLOADS_DIR, f"{document_id}.json")
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(text)
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(cached, f, indent=2, default=str)
+            return FinalAnalysisResponse.model_validate(cached)
+    except Exception as e:
+        logger.warning(f"Cache lookup failed (non-fatal): {str(e)}")
 
     # 1. Run LLM Analysis
     llm_client = LLMClient()
@@ -230,7 +260,7 @@ async def run_analysis_pipeline(document_id: str, filename: str, text: str, user
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(response.model_dump(), f, indent=2)
 
-    # 5. Save to Supabase (graceful fallback)
+    # 5. Save to Supabase (graceful fallback) — with content hash
     try:
         db_agent = DBAgent()
         await db_agent.save_analysis(
@@ -242,9 +272,10 @@ async def run_analysis_pipeline(document_id: str, filename: str, text: str, user
             clauses=response.clauses.model_dump(),
             metadata=response.metadata.model_dump(),
             inconsistency_score=response.inconsistency_score,
-            inconsistencies=[i.model_dump() for i in response.inconsistencies]
+            inconsistencies=[i.model_dump() for i in response.inconsistencies],
+            content_hash=content_hash
         )
-        logger.info(f"✅ Analysis {document_id} persisted to Supabase.")
+        logger.info(f"✅ Analysis {document_id} persisted to Supabase (hash: {content_hash[:12]}...).")
     except MissingDBCredentialsError:
         logger.warning("Supabase credentials missing — using local cache only.")
     except Exception as e:
@@ -287,10 +318,10 @@ async def upload_pdf(file: UploadFile = File(...), request: Request = None):
 
 @app.post("/upload-batch", dependencies=[Depends(verify_api_key)], tags=["Analysis"])
 async def upload_batch(files: list[UploadFile] = File(...), request: Request = None):
-    """Uploads multiple PDFs, extracts text, runs analysis for each, and returns a list of results."""
+    """Uploads multiple PDFs, extracts text, runs analysis for each, links them, and returns a list of results."""
     user_info = get_user_info(request) if request else {"user_id": "default_user", "role": "lawyer"}
-    results = []
     
+    extracted_docs = []
     for file in files:
         if not file.filename or not file.filename.lower().endswith(".pdf"):
             raise HTTPException(status_code=400, detail=f"File {file.filename} is not a PDF.")
@@ -303,18 +334,131 @@ async def upload_batch(files: list[UploadFile] = File(...), request: Request = N
             extracted_text = PDFParser.extract_text(file_bytes)
             if not extracted_text or not extracted_text.strip():
                 raise HTTPException(status_code=400, detail=f"No text found in PDF {file.filename}.")
+            
+            extracted_docs.append((file.filename, extracted_text))
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Failed to parse PDF {file.filename}: {str(e)}", exc_info=True)
             raise HTTPException(status_code=400, detail=f"Failed to parse PDF {file.filename}: {str(e)}")
             
-        document_id = str(uuid.uuid4())
-        logger.info(f"📄 Processing Batch Item '{file.filename}' → {document_id}")
+    # Concurrently execute all analysis pipelines
+    tasks = [
+        run_analysis_pipeline(str(uuid.uuid4()), filename, text, user_id=user_info["user_id"])
+        for filename, text in extracted_docs
+    ]
+    results = list(await asyncio.gather(*tasks))
+
+    # Link files together in metadata if multiple files are uploaded
+    if len(results) >= 2:
+        group_id = str(uuid.uuid4())
         
-        res = await run_analysis_pipeline(document_id, file.filename, extracted_text, user_id=user_info["user_id"])
-        results.append(res)
-        
+        # Run cross-document comparison
+        inconsistency_report = {}
+        try:
+            doc_data = []
+            total_len = 0
+            for r in results:
+                txt_path = os.path.join(UPLOADS_DIR, f"{r.document_id}.txt")
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+                doc_data.append({"filename": r.metadata.document_type or "Document", "text": text})
+                total_len += len(text)
+                
+            comparison_text = ""
+            if total_len > 14000:
+                logger.info(f"💾 Combined text size ({total_len} chars) exceeds rate limit threshold. Compiling structured summaries for comparison...")
+                for idx, r in enumerate(results):
+                    summary_text = f"\n--- DOCUMENT {idx+1}: {r.metadata.document_type or 'Document'} ---\n"
+                    summary_text += f"Summary: {r.summary.main_summary}\n"
+                    summary_text += f"Key Points: {', '.join(r.summary.key_points)}\n"
+                    summary_text += "Risks Identified:\n"
+                    for rk in r.risks:
+                        summary_text += f"- {rk.title}: {rk.description}\n"
+                    
+                    summary_text += "Key Clauses (Standard):\n"
+                    for cl in r.clauses.standard_clauses:
+                        content_snippet = cl.content or ''
+                        if len(content_snippet) > 800:
+                            content_snippet = content_snippet[:800] + "... [truncated]"
+                        summary_text += f"- {cl.title}: {content_snippet}\n"
+                    
+                    summary_text += "Key Clauses (Non-Standard):\n"
+                    for cl in r.clauses.non_standard_clauses:
+                        content_snippet = cl.content or ''
+                        if len(content_snippet) > 800:
+                            content_snippet = content_snippet[:800] + "... [truncated]"
+                        summary_text += f"- {cl.title}: {content_snippet}\n"
+                    comparison_text += summary_text
+            else:
+                for idx, doc in enumerate(doc_data):
+                    comparison_text += f"\n--- DOCUMENT {idx+1}: {doc['filename']} ---\n{doc['text']}\n"
+                
+            llm_client = LLMClient()
+            system_prompt = (
+                "You are an expert legal counsel. You need to analyze the legal documents provided below "
+                "and identify any conflicts, contradictions, or inconsistencies between them. Return a JSON object with this exact structure:\n\n"
+                "{\n"
+                '  "inconsistency_score": float,\n'
+                '  "inconsistencies": [\n'
+                "    {\n"
+                '      "title": "Title of conflict",\n'
+                '      "description": "Details",\n'
+                '      "severity": "High" | "Medium" | "Low",\n'
+                '      "affected_sections": ["Section X", "Section Y"]\n'
+                "    }\n"
+                '  ]\n'
+                "}"
+            )
+            raw_content = await llm_client.generate_response(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Here are the legal documents to compare:\n{comparison_text}"},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+            )
+            inconsistency_report = json.loads(raw_content)
+        except Exception as e:
+            logger.error(f"Auto batch comparison failed: {str(e)}")
+
+        # Update metadata of each document
+        for r in results:
+            json_path = os.path.join(UPLOADS_DIR, f"{r.document_id}.json")
+            if os.path.exists(json_path):
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                
+                # Setup metadata linked items
+                data["metadata"]["group_id"] = group_id
+                data["metadata"]["linked_docs"] = [
+                    {"document_id": other.document_id, "filename": other.metadata.document_type or "Document"} 
+                    for other in results if other.document_id != r.document_id
+                ]
+                if inconsistency_report:
+                    data["metadata"]["cross_contradictions"] = inconsistency_report
+                
+                # Save locally
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                
+                # Update r properties
+                r.metadata.group_id = group_id
+                r.metadata.linked_docs = data["metadata"]["linked_docs"]
+                if inconsistency_report:
+                    r.metadata.cross_contradictions = inconsistency_report
+                
+                # Sync to Supabase
+                try:
+                    db_agent = DBAgent()
+                    def _update_db(doc_id, metadata_val):
+                        return db_agent.client.table("analyses").update({"metadata": metadata_val}).eq("document_id", doc_id).execute()
+                    
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, _update_db, r.document_id, data["metadata"])
+                except Exception as e:
+                    logger.error(f"Failed to sync batch link metadata: {str(e)}")
+                    
     return results
 
 
@@ -489,30 +633,100 @@ async def compare_documents(req: CompareRequest):
 # AI Chat Endpoint
 # ---------------------------------------------------------------------------
 @app.post("/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)], tags=["AI Chat"])
-async def chat_with_doc(req: ChatRequest):
-    """Queries the document text with a natural-language question using AI."""
-    await ensure_local_files(req.document_id)
-    txt_path = os.path.join(UPLOADS_DIR, f"{req.document_id}.txt")
-    if not os.path.exists(txt_path):
-        raise HTTPException(status_code=404, detail="Document text not found.")
+async def chat_with_doc(req: ChatRequest, request: Request):
+    """Queries the document text or answers general legal questions with AI."""
+    
+    # Check if it's general chat mode
+    is_general = not req.document_id or str(req.document_id).strip().lower() in ("general", "none", "null", "")
+    
+    if is_general:
+        user_info = get_user_info(request)
+        user_id = user_info["user_id"]
+        user_role = user_info["role"]
+        
+        db_agent = DBAgent()
+        analyses_context = ""
+        lawyer_context = ""
+        try:
+            if user_role == "client":
+                analyses = await db_agent.list_shared_analyses(client_id=user_id)
+            else:
+                analyses = await db_agent.list_analyses(user_id=user_id)
+            
+            if analyses:
+                analyses_context = "Here are the user's uploaded legal documents in their workspace:\n"
+                for a in analyses[:10]:
+                    analyses_context += f"- Document: {a.get('filename')}, Type: {a.get('document_type')}, Risk Score: {a.get('risk_score')}/10.0, ID: {a.get('document_id')}\n"
+            else:
+                analyses_context = "The user has no legal documents uploaded or shared in their workspace yet.\n"
+        except Exception as e:
+            logger.error(f"Failed to query analyses context for chatbot: {e}")
+            
+        try:
+            contacts = await db_agent.get_contacts(user_id=user_id, role=user_role)
+            if contacts:
+                party_type = "Lawyers" if user_role == "client" else "Clients"
+                lawyer_context = f"Here are the connected {party_type} for this user in their workspace:\n"
+                for c in contacts:
+                    lawyer_context += f"- Name: {c.get('name')}, Email: {c.get('email')}, Phone: {c.get('phone') or 'Not shared'}"
+                    if c.get("specialty"):
+                        lawyer_context += f", Specialty: {c.get('specialty')}"
+                    lawyer_context += f", ID: {c.get('id')}\n"
+            else:
+                party_type = "lawyer" if user_role == "client" else "client"
+                lawyer_context = f"The user does not have any connected {party_type} matched through appointments yet.\n"
+        except Exception as e:
+            logger.error(f"Failed to query contacts context for chatbot: {e}")
 
-    try:
-        with open(txt_path, "r", encoding="utf-8") as f:
-            document_text = f.read()
-    except Exception as e:
-        logger.error(f"Failed to read contract text: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to load document text.")
+        system_prompt = (
+            "You are LexiconAI's expert AI Legal Assistant. You help users understand legal concepts, "
+            "compliance requirements, contract clauses, and platform features. Answer questions clearly, "
+            "professionally, and outline standard legal best practices when requested.\n\n"
+            "Here is the workspace context of the active user session:\n"
+            f"{analyses_context}\n"
+            f"{lawyer_context}\n"
+            "Answer questions using this context if the user asks about their documents, connected lawyers/clients, "
+            "or status updates. If they ask about standard legal concepts (like NDAs, liability, or indemnification), "
+            "provide expert guidance. Advise the user to consult their lawyer for formal legal counsel when appropriate."
+        )
+    else:
+        await ensure_local_files(req.document_id)
+        txt_path = os.path.join(UPLOADS_DIR, f"{req.document_id}.txt")
+        if not os.path.exists(txt_path):
+            # Fallback to general chat if document is missing
+            is_general = True
+            system_prompt = (
+                "You are LexiconAI's expert AI Legal Assistant. You help users understand legal concepts. "
+                "(The requested document context was not found, so you are responding in general advisory mode.)"
+            )
+        else:
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    document_text = f.read()
+                
+                # Smart truncation for large documents to stay within free-tier TPM limits (e.g. 6,000 tokens)
+                max_chars = 14000
+                if len(document_text) > max_chars:
+                    logger.warning(f"⚠️ Chat contract text length ({len(document_text)} chars) exceeds safe threshold ({max_chars} chars) for TPM limits. Truncating document context for chat...")
+                    document_text = (
+                        document_text[:10000]
+                        + "\n\n... [TRUNCATED MIDDLE CONTENT TO STAY WITHIN API LIMITS] ...\n\n"
+                        + document_text[-4000:]
+                    )
+            except Exception as e:
+                logger.error(f"Failed to read contract text: {str(e)}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Failed to load document text.")
+            
+            system_prompt = (
+                "You are an expert AI legal assistant. You are helping a user analyze a legal contract.\n"
+                "Below is the full text of the legal contract:\n\n"
+                f"--- START CONTRACT ---\n{document_text}\n--- END CONTRACT ---\n\n"
+                "Answer the user's question accurately using only the contract text when possible. "
+                "If the information is not in the contract, explain that it cannot be found in the document. "
+                "Be clear, professional, and highlight specific section numbers or references if they exist."
+            )
 
     llm_client = LLMClient()
-    system_prompt = (
-        "You are an expert AI legal assistant. You are helping a user analyze a legal contract.\n"
-        "Below is the full text of the legal contract:\n\n"
-        f"--- START CONTRACT ---\n{document_text}\n--- END CONTRACT ---\n\n"
-        "Answer the user's question accurately using only the contract text when possible. "
-        "If the information is not in the contract, explain that it cannot be found in the document. "
-        "Be clear, professional, and highlight specific section numbers or references if they exist."
-    )
-
     try:
         answer = await llm_client.generate_response(
             messages=[
@@ -524,7 +738,7 @@ async def chat_with_doc(req: ChatRequest):
         return ChatResponse(answer=answer, sources=[])
     except Exception as e:
         logger.error(f"LLM chat query failed: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to query document: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to query advisor: {str(e)}")
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +761,23 @@ async def create_note(document_id: str, req: NoteCreate, request: Request):
     user_info = get_user_info(request)
     db_agent = DBAgent()
     try:
-        return await db_agent.save_note(document_id, user_info["user_id"], req.content)
+        doc_id = document_id
+        if doc_id and str(doc_id).strip().lower() in ("none", "null", ""):
+            doc_id = None
+        return await db_agent.save_note(doc_id, user_info["user_id"], req.content)
+    except Exception as e:
+        logger.error(f"Failed to save note: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save note: {str(e)}")
+
+@app.post("/notes", dependencies=[Depends(verify_api_key)], tags=["Notes"])
+async def create_general_note(req: NoteCreate, request: Request):
+    user_info = get_user_info(request)
+    db_agent = DBAgent()
+    try:
+        doc_id = req.document_id
+        if doc_id and str(doc_id).strip().lower() in ("none", "null", ""):
+            doc_id = None
+        return await db_agent.save_note(doc_id, user_info["user_id"], req.content)
     except Exception as e:
         logger.error(f"Failed to save note: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to save note: {str(e)}")
@@ -587,7 +817,12 @@ async def list_all_notes(request: Request):
 # ---------------------------------------------------------------------------
 # Collaboration & Sharing Endpoints
 # ---------------------------------------------------------------------------
-from app.models.schemas import MessageCreate, MessageResponse, ShareRequest
+# (Models imported at top of file)
+
+
+class CompleteProfileRequest(BaseModel):
+    name: str
+    role: str  # 'lawyer' or 'client'
 
 @app.post("/messages/{document_id}", dependencies=[Depends(verify_api_key)], tags=["Collaboration"])
 async def send_message(document_id: str, req: MessageCreate, request: Request):
@@ -714,3 +949,323 @@ def get_pdf_report(document_id: str):
     except Exception as e:
         logger.error(f"Error generating report: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Lawyers and Appointments Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/lawyers", response_model=list[LawyerResponse], tags=["Lawyers & Appointments"])
+async def get_lawyers_list():
+    """Retrieve list of all registered lawyers."""
+    db_agent = DBAgent()
+    try:
+        return await db_agent.get_lawyers()
+    except Exception as e:
+        logger.error(f"Failed to fetch lawyers list: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch lawyers list: {str(e)}")
+
+
+@app.get("/appointments", response_model=list[AppointmentResponse], dependencies=[Depends(verify_api_key)], tags=["Lawyers & Appointments"])
+async def get_appointments(request: Request):
+    """Retrieve appointments for the current user."""
+    user_info = get_user_info(request)
+    db_agent = DBAgent()
+    try:
+        return await db_agent.get_appointments(user_id=user_info["user_id"], role=user_info["role"])
+    except Exception as e:
+        logger.error(f"Failed to fetch appointments: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch appointments: {str(e)}")
+
+
+@app.post("/appointments", response_model=AppointmentResponse, dependencies=[Depends(verify_api_key)], tags=["Lawyers & Appointments"])
+async def create_appointment(req: AppointmentCreate, request: Request):
+    """Create a new appointment request. Clients can optionally choose a lawyer or leave blank for auto-assignment."""
+    user_info = get_user_info(request)
+    
+    if user_info["role"] == "client":
+        client_id = user_info["user_id"]
+        lawyer_id = req.lawyer_id  # May be None for auto-assignment
+    elif user_info["role"] == "lawyer":
+        if not req.client_id:
+            raise HTTPException(status_code=400, detail="client_id is required when scheduled by a lawyer.")
+        client_id = req.client_id
+        lawyer_id = user_info["user_id"]
+    else:
+        raise HTTPException(status_code=403, detail="Unauthorized role.")
+        
+    db_agent = DBAgent()
+    
+    # Auto-assign lawyer if not specified (least-busy available lawyer)
+    if not lawyer_id:
+        try:
+            best_lawyer = await db_agent.get_least_busy_lawyer()
+            if not best_lawyer:
+                raise HTTPException(status_code=404, detail="No lawyers are currently available. Please try again later.")
+            lawyer_id = best_lawyer["id"]
+            logger.info(f"🤖 Auto-assigned lawyer: {best_lawyer['name']} ({best_lawyer['id']})")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Auto-assignment failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to auto-assign lawyer: {str(e)}")
+    
+    # Fetch profiles for names and email notifications
+    client_email = "client@lexicon.com"
+    client_name = "Client"
+    lawyer_email = "lawyer@lexicon.com"
+    lawyer_name = "Lawyer"
+    
+    try:
+        loop = asyncio.get_running_loop()
+        def _fetch_profile(uid):
+            return db_agent.client.table("profiles").select("email, name").eq("id", uid).single().execute()
+            
+        try:
+            c_res = await loop.run_in_executor(None, _fetch_profile, client_id)
+            if c_res.data:
+                client_email = c_res.data.get("email", client_email)
+                client_name = c_res.data.get("name", client_name)
+        except Exception:
+            pass
+            
+        try:
+            l_res = await loop.run_in_executor(None, _fetch_profile, lawyer_id)
+            if l_res.data:
+                lawyer_email = l_res.data.get("email", lawyer_email)
+                lawyer_name = l_res.data.get("name", lawyer_name)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    logger.info("📧 SIMULATED APPOINTMENT BOOKING NOTIFICATION EMAILS SENT:")
+    logger.info(f"   To Client: {client_name} <{client_email}>")
+    logger.info(f"   To Lawyer: {lawyer_name} <{lawyer_email}>")
+    logger.info(f"   Subject: Consultation Scheduled: {req.title}")
+    logger.info(f"   Details: {req.appointment_date} at {req.appointment_time} (Google Meet links generated)")
+    
+    try:
+        return await db_agent.create_appointment(
+            client_id=client_id,
+            lawyer_id=lawyer_id,
+            client_name=client_name,
+            lawyer_name=lawyer_name,
+            title=req.title,
+            description=req.description,
+            date=req.appointment_date,
+            time=req.appointment_time,
+            share_phone_with_lawyer=req.share_phone_with_lawyer
+        )
+    except Exception as e:
+        logger.error(f"Failed to schedule appointment: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to schedule appointment: {str(e)}")
+
+
+@app.put("/appointments/{appointment_id}", response_model=AppointmentResponse, dependencies=[Depends(verify_api_key)], tags=["Lawyers & Appointments"])
+async def update_appointment_status(appointment_id: int, req: AppointmentUpdate, request: Request):
+    """Update appointment status (Completed, Cancelled)."""
+    db_agent = DBAgent()
+    try:
+        return await db_agent.update_appointment(appointment_id=appointment_id, status=req.status)
+    except Exception as e:
+        logger.error(f"Failed to update appointment status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update appointment: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Auth / Profile Completion Endpoint (Google OAuth)
+# ---------------------------------------------------------------------------
+
+@app.post("/auth/complete-profile", tags=["Auth"])
+async def complete_profile(req: CompleteProfileRequest, request: Request):
+    """Complete a user's profile after Google OAuth sign-in (set role, insert into role table)."""
+    user_info = get_user_info(request)
+    user_id = user_info["user_id"]
+    
+    if not user_id or user_id == "default_user":
+        raise HTTPException(status_code=401, detail="User is not authenticated.")
+    
+    if req.role not in ("lawyer", "client"):
+        raise HTTPException(status_code=400, detail="Role must be 'lawyer' or 'client'.")
+    
+    db_agent = DBAgent()
+    try:
+        # Fetch user email from profiles
+        loop = asyncio.get_running_loop()
+        def _get_email():
+            return db_agent.client.table("profiles").select("email").eq("id", user_id).single().execute()
+        
+        email_res = await loop.run_in_executor(None, _get_email)
+        email = email_res.data.get("email", "") if email_res.data else ""
+        
+        profile = await db_agent.complete_profile(
+            user_id=user_id,
+            email=email,
+            name=req.name,
+            role=req.role
+        )
+        logger.info(f"✅ Profile completed for {user_id}: role={req.role}, name={req.name}")
+        return {"success": True, "profile": profile}
+    except Exception as e:
+        logger.error(f"Failed to complete profile: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to complete profile: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Email Share Endpoint
+# ---------------------------------------------------------------------------
+
+class EmailShareRequest(BaseModel):
+    recipient_email: str
+
+def send_real_email(recipient_email: str, subject: str, body_text: str) -> bool:
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = os.getenv("SMTP_PORT")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    smtp_sender = os.getenv("SMTP_SENDER", smtp_user or "noreply@lexiconai.com")
+    
+    if not smtp_host or not smtp_user or not smtp_password:
+        logger.info("SMTP configuration missing in .env — skipping real email delivery.")
+        return False
+        
+    try:
+        port = int(smtp_port) if smtp_port else 587
+        msg = MIMEMultipart()
+        msg["From"] = smtp_sender
+        msg["To"] = recipient_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body_text, "plain", "utf-8"))
+        
+        server = smtplib.SMTP(smtp_host, port, timeout=10)
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_sender, [recipient_email], msg.as_string())
+        server.quit()
+        logger.info(f"📬 REAL SMTP EMAIL SENT to: {recipient_email}")
+        return True
+    except Exception as ex:
+        logger.error(f"Failed to deliver SMTP email: {str(ex)}", exc_info=True)
+        return False
+
+@app.post("/share-email/{document_id}", dependencies=[Depends(verify_api_key)], tags=["Collaboration"])
+async def share_analysis_email(document_id: str, req: EmailShareRequest, request: Request):
+    """Generates and shares a summary brief, attempting real SMTP delivery, falling back to simulated logger."""
+    user_info = get_user_info(request)
+    
+    await ensure_local_files(document_id)
+    json_path = os.path.join(UPLOADS_DIR, f"{document_id}.json")
+    if not os.path.exists(json_path):
+        raise HTTPException(status_code=404, detail="Analysis results not found.")
+        
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        summary = data.get("summary", {})
+        risks = data.get("risks", [])
+        metadata = data.get("metadata", {})
+        risk_score = data.get("risk_score", 0.0)
+        
+        brief = (
+            f"Dear Recipient,\n\n"
+            f"Here is the Legal Document Analysis Brief shared by a Lexicon AI platform member.\n\n"
+            f"--------------------------------------------------\n"
+            f"DOCUMENT DETAILS\n"
+            f"--------------------------------------------------\n"
+            f"Document: {data.get('filename', 'Untitled PDF')}\n"
+            f"Type: {metadata.get('document_type', 'Unknown')}\n"
+            f"Parties: {', '.join(metadata.get('parties', ['Unknown']))}\n"
+            f"Overall Risk Score: {risk_score}/10.0\n\n"
+            f"--------------------------------------------------\n"
+            f"EXECUTIVE SUMMARY\n"
+            f"--------------------------------------------------\n"
+            f"{summary.get('tldr', 'No summary available.')}\n\n"
+            f"--------------------------------------------------\n"
+            f"KEY FINDINGS & RISKS ({len(risks)} flag(s))\n"
+            f"--------------------------------------------------\n"
+        )
+        
+        for idx, risk in enumerate(risks[:5]):
+            brief += f"{idx+1}. [{risk.get('severity', 'Medium')}] {risk.get('title', 'Risk')}: {risk.get('description', '')}\n"
+            
+        if len(risks) > 5:
+            brief += f"...and {len(risks) - 5} more risks in the full report.\n"
+            
+        brief += (
+            f"\n--------------------------------------------------\n"
+            f"Please log in to your Lexicon AI portal to view the full interactive report, redline clauses, and chat with counsel.\n\n"
+            f"Best regards,\n"
+            f"Lexicon AI Systems"
+        )
+        
+        # Deliver email
+        email_subject = f"Legal Analysis Brief - {data.get('filename', 'Untitled PDF')}"
+        sent_real = send_real_email(req.recipient_email, email_subject, brief)
+        
+        if not sent_real:
+            logger.info(f"📧 SIMULATED EMAIL SENT to: {req.recipient_email}")
+            logger.info(f"   Subject: {email_subject}")
+            logger.info(f"   Sender: {user_info['user_id']} ({user_info['role']})")
+            
+        return {
+            "success": True,
+            "recipient": req.recipient_email,
+            "brief": brief,
+            "real_delivered": sent_real
+        }
+    except Exception as e:
+        logger.error(f"Failed to export analysis by email: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to export email brief: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Contacts & Direct Messaging Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/contacts", response_model=list[ContactResponse], dependencies=[Depends(verify_api_key)], tags=["Messaging"])
+async def get_contacts(request: Request):
+    """Get contacts for the current user based on appointment relationships."""
+    user_info = get_user_info(request)
+    db_agent = DBAgent()
+    try:
+        return await db_agent.get_contacts(user_id=user_info["user_id"], role=user_info["role"])
+    except Exception as e:
+        logger.error(f"Failed to fetch contacts: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch contacts: {str(e)}")
+
+
+@app.get("/direct-messages/{contact_id}", dependencies=[Depends(verify_api_key)], tags=["Messaging"])
+async def get_direct_messages(contact_id: str, request: Request):
+    """Get direct messages between the current user and a contact."""
+    user_info = get_user_info(request)
+    db_agent = DBAgent()
+    try:
+        return await db_agent.get_direct_messages(user_id=user_info["user_id"], contact_id=contact_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch direct messages: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch messages: {str(e)}")
+
+
+@app.post("/direct-messages/{contact_id}", dependencies=[Depends(verify_api_key)], tags=["Messaging"])
+async def send_direct_message(contact_id: str, req: DirectMessageCreate, request: Request):
+    """Send a direct message to a contact."""
+    user_info = get_user_info(request)
+    display_name = request.headers.get("x-user-name", "User")
+    db_agent = DBAgent()
+    try:
+        return await db_agent.send_direct_message(
+            sender_id=user_info["user_id"],
+            receiver_id=contact_id,
+            sender_name=display_name,
+            sender_role=user_info["role"],
+            content=req.content
+        )
+    except Exception as e:
+        logger.error(f"Failed to send direct message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")

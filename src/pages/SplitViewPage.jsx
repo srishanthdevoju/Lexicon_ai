@@ -30,25 +30,30 @@ export default function SplitViewPage() {
   const [documents, setDocuments] = useState([]);
   const [docAId, setDocAId] = useState(searchParams.get("docA") || "");
   const [docBId, setDocBId] = useState(searchParams.get("docB") || "");
+  const [docCId, setDocCId] = useState("");
   
   // Loading & Content
   const [loadingList, setLoadingList] = useState(true);
   const [docAText, setDocAText] = useState("");
   const [docBText, setDocBText] = useState("");
+  const [docCText, setDocCText] = useState("");
   const [docAAnalysis, setDocAAnalysis] = useState(null);
   const [docBAnalysis, setDocBAnalysis] = useState(null);
+  const [docCAnalysis, setDocCAnalysis] = useState(null);
   
   const [loadingA, setLoadingA] = useState(false);
   const [loadingB, setLoadingB] = useState(false);
+  const [loadingC, setLoadingC] = useState(false);
   
-  // Right Pane Mode: 'document' (compare two docs) vs 'analysis' (compare doc A text vs its analysis)
+  // Right Pane Mode: 'document' (compare side-by-side) vs 'analysis' (compare doc A text vs its analysis)
   const [rightMode, setRightMode] = useState("document");
   
   // Layout and interaction states
-  const [leftWidth, setLeftWidth] = useState(50); // percentage width for left panel
+  const [leftWidth, setLeftWidth] = useState(50); // percentage width for left panel (only if 2 docs compared)
   const [syncScroll, setSyncScroll] = useState(false);
   const [searchQueryA, setSearchQueryA] = useState("");
   const [searchQueryB, setSearchQueryB] = useState("");
+  const [searchQueryC, setSearchQueryC] = useState("");
   
   // Cross-doc contradictions state
   const [crossContradictions, setCrossContradictions] = useState(null);
@@ -57,6 +62,7 @@ export default function SplitViewPage() {
   // Pane refs for scroll syncing
   const leftPaneRef = useRef(null);
   const rightPaneRef = useRef(null);
+  const thirdPaneRef = useRef(null);
   const scrollLockRef = useRef(false);
 
   // Resize divider ref
@@ -105,7 +111,11 @@ export default function SplitViewPage() {
 
   // Load Doc B Content
   useEffect(() => {
-    if (!docBId) return;
+    if (!docBId) {
+      setDocBText("");
+      setDocBAnalysis(null);
+      return;
+    }
     async function loadB() {
       setLoadingB(true);
       try {
@@ -122,13 +132,40 @@ export default function SplitViewPage() {
     loadB();
   }, [docBId]);
 
-  // Run cross-document comparison using our API if two documents are selected
+  // Load Doc C Content
+  useEffect(() => {
+    if (!docCId) {
+      setDocCText("");
+      setDocCAnalysis(null);
+      return;
+    }
+    async function loadC() {
+      setLoadingC(true);
+      try {
+        const text = await getAnalysisText(docCId);
+        const analysis = await getAnalysis(docCId);
+        setDocCText(text);
+        setDocCAnalysis(analysis);
+      } catch (err) {
+        console.error("Error loading Doc C:", err);
+      } finally {
+        setLoadingC(false);
+      }
+    }
+    loadC();
+  }, [docCId]);
+
+  // Run cross-document comparison using our API if multiple documents are selected
   const handleRunComparison = async () => {
-    if (!docAId || !docBId) return;
+    if (!docAId || (!docBId && !docCId)) return;
     setLoadingComparison(true);
     setCrossContradictions(null);
     try {
-      const data = await compareDocuments([docAId, docBId]);
+      const docIds = [docAId];
+      if (docBId) docIds.push(docBId);
+      if (docCId) docIds.push(docCId);
+      
+      const data = await compareDocuments(docIds);
       setCrossContradictions(data);
     } catch (err) {
       console.error("Comparison failed:", err);
@@ -146,18 +183,30 @@ export default function SplitViewPage() {
     
     const leftPane = leftPaneRef.current;
     const rightPane = rightPaneRef.current;
+    const thirdPane = thirdPaneRef.current;
     
-    if (!leftPane || !rightPane) {
+    if (!leftPane) {
       scrollLockRef.current = false;
       return;
     }
 
+    let percentage = 0;
     if (source === "left") {
-      const percentage = leftPane.scrollTop / (leftPane.scrollHeight - leftPane.clientHeight);
-      rightPane.scrollTop = percentage * (rightPane.scrollHeight - rightPane.clientHeight);
-    } else {
-      const percentage = rightPane.scrollTop / (rightPane.scrollHeight - rightPane.clientHeight);
+      percentage = leftPane.scrollTop / (leftPane.scrollHeight - leftPane.clientHeight);
+    } else if (source === "right" && rightPane) {
+      percentage = rightPane.scrollTop / (rightPane.scrollHeight - rightPane.clientHeight);
+    } else if (source === "third" && thirdPane) {
+      percentage = thirdPane.scrollTop / (thirdPane.scrollHeight - thirdPane.clientHeight);
+    }
+
+    if (source !== "left") {
       leftPane.scrollTop = percentage * (leftPane.scrollHeight - leftPane.clientHeight);
+    }
+    if (source !== "right" && rightPane) {
+      rightPane.scrollTop = percentage * (rightPane.scrollHeight - rightPane.clientHeight);
+    }
+    if (source !== "third" && thirdPane) {
+      thirdPane.scrollTop = percentage * (thirdPane.scrollHeight - thirdPane.clientHeight);
     }
 
     // Release lock on next frame
@@ -166,7 +215,7 @@ export default function SplitViewPage() {
     });
   };
 
-  // Resizable Divider Logic
+  // Resizable Divider Logic (Only when 2 documents compared)
   const startResize = (e) => {
     e.preventDefault();
     const onMouseMove = (moveEvent) => {
@@ -229,7 +278,10 @@ export default function SplitViewPage() {
               <span className="text-[11px] font-semibold text-text-secondary uppercase">Doc B:</span>
               <select 
                 value={docBId}
-                onChange={(e) => setDocBId(e.target.value)}
+                onChange={(e) => {
+                  setDocBId(e.target.value);
+                  if (e.target.value === docCId) setDocCId("");
+                }}
                 disabled={rightMode === "analysis"}
                 className="bg-transparent text-[12px] font-medium text-primary focus:outline-none max-w-[160px] disabled:opacity-50"
               >
@@ -239,6 +291,23 @@ export default function SplitViewPage() {
                 ))}
               </select>
             </div>
+
+            {/* Document C Selector */}
+            {rightMode === "document" && (
+              <div className="flex items-center gap-1.5 bg-background border border-border px-2 py-1 rounded animate-in fade-in duration-200">
+                <span className="text-[11px] font-semibold text-text-secondary uppercase">Doc C:</span>
+                <select 
+                  value={docCId}
+                  onChange={(e) => setDocCId(e.target.value)}
+                  className="bg-transparent text-[12px] font-medium text-primary focus:outline-none max-w-[160px]"
+                >
+                  <option value="">(None)</option>
+                  {documents.filter(d => d.document_id !== docAId && d.document_id !== docBId).map(d => (
+                    <option key={d.document_id} value={d.document_id}>{d.filename}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Sync Scroll Toggle */}
             <label className="flex items-center gap-2 cursor-pointer text-[12px] text-text-secondary hover:text-primary transition-colors pl-2">
@@ -265,7 +334,10 @@ export default function SplitViewPage() {
                 <span>Side-by-Side</span>
               </button>
               <button 
-                onClick={() => setRightMode("analysis")}
+                onClick={() => {
+                  setRightMode("analysis");
+                  setDocCId(""); // Doc C not supported in Doc vs Analysis mode
+                }}
                 className={`px-3 py-1.5 text-[11px] font-semibold transition-colors flex items-center gap-1 ${
                   rightMode === "analysis" ? "bg-primary text-white" : "bg-white text-text-secondary hover:bg-slate-50"
                 }`}
@@ -276,7 +348,7 @@ export default function SplitViewPage() {
             </div>
 
             {/* Cross-doc Comparison button */}
-            {rightMode === "document" && docAId && docBId && (
+            {rightMode === "document" && docAId && (docBId || docCId) && (
               <button
                 onClick={handleRunComparison}
                 disabled={loadingComparison}
@@ -289,13 +361,13 @@ export default function SplitViewPage() {
           </div>
         </div>
 
-        {/* Double-Pane Split Viewer Container */}
+        {/* Multi-Pane Split Viewer Container */}
         <div ref={containerRef} className="flex-1 flex border border-border bg-white rounded-lg overflow-hidden shadow-sm relative min-h-0">
           
           {/* LEFT PANE - Document A Content */}
           <div 
-            style={{ width: `${leftWidth}%` }}
-            className="flex flex-col h-full min-w-0"
+            style={!docCId ? { width: `${leftWidth}%` } : {}}
+            className={`flex flex-col h-full min-w-0 ${docCId ? "flex-1" : ""}`}
           >
             {/* Pane A Header */}
             <div className="p-3 bg-slate-50 border-b border-border flex items-center justify-between shrink-0">
@@ -335,18 +407,20 @@ export default function SplitViewPage() {
             </div>
           </div>
 
-          {/* RESIZABLE DIVIDER DRAGGER */}
-          <div 
-            onMouseDown={startResize}
-            className="w-1.5 hover:w-2 bg-border hover:bg-primary cursor-col-resize flex items-center justify-center shrink-0 transition-all group z-20 relative"
-          >
-            <div className="absolute top-1/2 -translate-y-1/2 w-1.5 h-10 bg-slate-400 group-hover:bg-white rounded-full"></div>
-          </div>
+          {/* RESIZABLE DIVIDER DRAGGER (Only shown if docCId is empty) */}
+          {!docCId && (
+            <div 
+              onMouseDown={startResize}
+              className="w-1.5 hover:w-2 bg-border hover:bg-primary cursor-col-resize flex items-center justify-center shrink-0 transition-all group z-20 relative"
+            >
+              <div className="absolute top-1/2 -translate-y-1/2 w-1.5 h-10 bg-slate-400 group-hover:bg-white rounded-full"></div>
+            </div>
+          )}
 
           {/* RIGHT PANE - Document B Content OR Document A Analysis */}
           <div 
-            style={{ width: `${100 - leftWidth}%` }}
-            className="flex flex-col h-full min-w-0"
+            style={!docCId ? { width: `${100 - leftWidth}%` } : {}}
+            className={`flex flex-col h-full min-w-0 ${docCId ? "flex-1 border-l border-border" : ""}`}
           >
             {rightMode === "document" ? (
               // Document vs Document Mode
@@ -429,16 +503,26 @@ export default function SplitViewPage() {
                       <div className="border border-border rounded p-4">
                         <h4 className="text-[12px] font-bold text-primary uppercase mb-3">Flagged Risks</h4>
                         {docAAnalysis.risks && docAAnalysis.risks.length > 0 ? (
-                          <div className="space-y-2">
+                          <div className="space-y-2.5">
                             {docAAnalysis.risks.map((risk, idx) => (
-                              <div key={idx} className="flex items-start gap-2.5 p-2.5 border border-border bg-slate-50/50 rounded">
-                                <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${
-                                  risk.severity === "High" ? "text-risk-red" : risk.severity === "Medium" ? "text-risk-amber" : "text-primary"
-                                }`} />
-                                <div>
-                                  <div className="text-[12px] font-bold text-primary">{risk.title}</div>
-                                  <div className="text-[11px] text-text-secondary mt-0.5">{risk.description}</div>
+                              <div key={idx} className="flex flex-col p-3 border border-border bg-slate-50/50 rounded gap-1">
+                                <div className="flex items-start gap-2">
+                                  <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${
+                                    risk.severity === "High" ? "text-risk-red" : risk.severity === "Medium" ? "text-risk-amber" : "text-primary"
+                                  }`} />
+                                  <span className="text-[12px] font-bold text-primary">{risk.title}</span>
+                                  <span className={`ml-auto text-[8px] font-bold px-1 py-0.5 rounded uppercase ${
+                                    risk.severity === "High" ? "bg-risk-red-light text-risk-red" : risk.severity === "Medium" ? "bg-risk-amber-light text-risk-amber" : "bg-slate-100 text-text-secondary"
+                                  }`}>
+                                    {risk.severity}
+                                  </span>
                                 </div>
+                                <p className="text-[11px] text-text-secondary leading-relaxed mt-0.5">{risk.description}</p>
+                                {risk.mitigation && (
+                                  <div className="mt-2 text-[10.5px] border-t border-dashed border-border pt-1.5 text-primary">
+                                    <span className="font-semibold text-[10px] uppercase text-risk-green">Mitigation:</span> {risk.mitigation}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -474,6 +558,48 @@ export default function SplitViewPage() {
               </>
             )}
           </div>
+
+          {/* THIRD PANE - Document C Content (Side-by-side mode only, when docCId is selected) */}
+          {rightMode === "document" && docCId && (
+            <div className="flex-1 flex flex-col h-full min-w-0 border-l border-border animate-in slide-in-from-right duration-300">
+              {/* Pane C Header */}
+              <div className="p-3 bg-slate-50 border-b border-border flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-[12px] font-bold text-primary truncate">
+                    {getDocName(docCId)}
+                  </span>
+                </div>
+                <div className="relative w-40 shrink-0">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+                  <input
+                    type="text"
+                    placeholder="Find text..."
+                    value={searchQueryC}
+                    onChange={(e) => setSearchQueryC(e.target.value)}
+                    className="w-full pl-7 pr-2 py-1 border border-border rounded text-[11px] bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Pane C Text Box */}
+              <div 
+                ref={thirdPaneRef}
+                onScroll={() => handleScroll("third")}
+                className="flex-1 overflow-y-auto p-6 text-[13px] leading-relaxed text-text-primary whitespace-pre-wrap font-mono select-text"
+              >
+                {loadingC ? (
+                  <div className="flex items-center justify-center h-full">
+                    <RefreshCw className="w-5 h-5 text-primary animate-spin" />
+                  </div>
+                ) : (
+                  renderHighlightedText(docCText, searchQueryC) || (
+                    <p className="text-text-muted text-center italic mt-12">No document text loaded.</p>
+                  )
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bottom Panel - Cross Document Contradiction Analysis */}

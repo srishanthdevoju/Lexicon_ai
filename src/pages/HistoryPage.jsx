@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
+import { useAuth } from "@/lib/AuthContext";
 import { listAnalyses } from "@/lib/api";
 import { 
   Clock, 
@@ -13,6 +14,7 @@ import {
 
 export default function HistoryPage() {
   const navigate = useNavigate();
+  const { userRole } = useAuth();
   const [analyses, setAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -90,9 +92,13 @@ export default function HistoryPage() {
             <div className="p-12 flex flex-col items-center justify-center text-center">
               <Clock className="w-8 h-8 text-text-muted mb-2" />
               <p className="text-[13px] text-text-secondary">
-                {searchTerm ? "No documents match your search." : "No analysis history yet."}
+                {searchTerm 
+                  ? "No documents match your search." 
+                  : userRole === "client"
+                    ? "No documents have been shared with you yet. Ask your lawyer to share documents via the analysis page."
+                    : "No analysis history yet."}
               </p>
-              {!searchTerm && (
+              {!searchTerm && userRole !== "client" && (
                 <button
                   onClick={() => navigate("/upload")}
                   className="mt-3 px-4 py-2 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"

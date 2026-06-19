@@ -68,8 +68,14 @@ export default function DocumentSubmissionPage() {
       const isPDF = file.name.toLowerCase().endsWith('.pdf');
       if (!isPDF) {
         setError("Only PDF files are accepted.");
+        return false;
       }
-      return isPDF;
+      const isUnderLimit = file.size <= 50 * 1024 * 1024;
+      if (!isUnderLimit) {
+        setError(`File "${file.name}" exceeds the maximum size limit of 50 MB.`);
+        return false;
+      }
+      return true;
     });
 
     setSelectedFiles(prev => {

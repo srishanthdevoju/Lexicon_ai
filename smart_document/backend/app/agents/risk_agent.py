@@ -29,7 +29,9 @@ class RiskAgent:
                 description=risk.description,
                 severity=risk.severity,
                 severity_weight=weight,
-                is_critical=is_critical
+                is_critical=is_critical,
+                mitigation=risk.mitigation,
+                impact=risk.impact
             ))
             
         # Sort descending by severity weight

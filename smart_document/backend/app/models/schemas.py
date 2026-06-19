@@ -11,6 +11,8 @@ class LLMRisk(BaseModel):
     title: str = Field(description="Name or category of the risk.")
     description: str = Field(description="Detailed explanation of the risk.")
     severity: str = Field(description="Severity level of the risk (High, Medium, Low).")
+    mitigation: Optional[str] = Field(default="", description="Suggested change or mitigation strategy for this risk.")
+    impact: Optional[str] = Field(default="", description="Potential business or legal consequence of this risk.")
 
 class LLMClause(BaseModel):
     title: str = Field(description="Title of the clause.")
@@ -22,6 +24,9 @@ class LLMMetadata(BaseModel):
     parties: List[str] = Field(default_factory=list, description="Parties involved in the contract.")
     effective_date: str = Field(description="Effective date of the document.")
     document_text: Optional[str] = Field(default=None, description="The full extracted text of the document.")
+    group_id: Optional[str] = Field(default=None, description="Linked document group ID.")
+    linked_docs: Optional[List[dict]] = Field(default_factory=list, description="Other documents in the linked group.")
+    cross_contradictions: Optional[dict] = Field(default=None, description="Batch cross-document contradictions report.")
 
 # --- Inconsistency Detection Models ---
 
@@ -54,6 +59,8 @@ class FinalRisk(BaseModel):
     severity: str
     severity_weight: int  # High -> 3, Medium -> 2, Low -> 1
     is_critical: bool     # True if severity is High (weight == 3)
+    mitigation: Optional[str] = ""
+    impact: Optional[str] = ""
 
 class FinalClauses(BaseModel):
     standard_clauses: List[LLMClause]
@@ -81,13 +88,14 @@ class AnalyzeTextRequest(BaseModel):
 
 class NoteCreate(BaseModel):
     content: str
+    document_id: Optional[str] = None
 
 class NoteUpdate(BaseModel):
     content: str
 
 class NoteResponse(BaseModel):
     id: int
-    document_id: str
+    document_id: Optional[str] = None
     user_id: str
     content: str
     created_at: Optional[str] = None
@@ -115,4 +123,73 @@ class MessageResponse(BaseModel):
 
 class ShareRequest(BaseModel):
     client_email: str
+
+
+# --- Lawyer Models ---
+
+class LawyerResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    specialty: str
+    phone: Optional[str] = None
+    available_slots: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+# --- Appointment Models ---
+
+class AppointmentCreate(BaseModel):
+    lawyer_id: Optional[str] = None  # None = auto-assign to any available lawyer
+    client_id: Optional[str] = None
+    title: str
+    description: Optional[str] = ""
+    appointment_date: str  # YYYY-MM-DD
+    appointment_time: str  # HH:MM
+    share_phone_with_lawyer: Optional[bool] = False
+
+class AppointmentUpdate(BaseModel):
+    status: str
+
+class AppointmentResponse(BaseModel):
+    id: int
+    client_id: str
+    lawyer_id: str
+    title: str
+    description: Optional[str] = ""
+    appointment_date: str
+    appointment_time: str
+    status: str
+    meeting_link: Optional[str] = None
+    share_phone_with_lawyer: Optional[bool] = False
+    client_phone: Optional[str] = None
+    lawyer_phone: Optional[str] = None
+    created_at: Optional[str] = None
+    client_name: Optional[str] = None
+    lawyer_name: Optional[str] = None
+
+
+# --- Direct Messaging Models ---
+
+class DirectMessageCreate(BaseModel):
+    content: str
+
+class DirectMessageResponse(BaseModel):
+    id: int
+    sender_id: str
+    receiver_id: str
+    sender_name: str
+    sender_role: str
+    content: str
+    created_at: Optional[str] = None
+
+
+# --- Contact Models ---
+
+class ContactResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: str
+    specialty: Optional[str] = None
 

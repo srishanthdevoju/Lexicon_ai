@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
-import { listAllNotes, updateNote, deleteNote } from "@/lib/api";
+import { listAllNotes, updateNote, deleteNote, createGeneralNote } from "@/lib/api";
 import { 
   Search, 
   Trash2, 
@@ -13,7 +13,8 @@ import {
   AlertCircle,
   CheckCircle,
   FileEdit,
-  X
+  X,
+  Plus
 } from "lucide-react";
 
 export default function NotesPage() {
@@ -25,6 +26,31 @@ export default function NotesPage() {
   const [editContent, setEditContent] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [creatingNote, setCreatingNote] = useState(false);
+
+  const handleCreateNote = async (e) => {
+    e.preventDefault();
+    if (!newNoteContent.trim()) return;
+    setCreatingNote(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    try {
+      await createGeneralNote(newNoteContent);
+      setSuccessMsg("General note created successfully.");
+      setNewNoteContent("");
+      setShowAddModal(false);
+      fetchNotes();
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err) {
+      console.error("Failed to create note:", err);
+      setErrorMsg("Failed to create general note.");
+      setTimeout(() => setErrorMsg(""), 3000);
+    } finally {
+      setCreatingNote(false);
+    }
+  };
 
   const fetchNotes = async () => {
     setLoading(true);
@@ -85,7 +111,7 @@ export default function NotesPage() {
   // Filter notes by search query
   const filteredNotes = notes.filter(note => {
     const contentMatch = note.content.toLowerCase().includes(searchQuery.toLowerCase());
-    const docName = note.analyses?.filename || "Untitled PDF";
+    const docName = note.document_id ? (note.analyses?.filename || "Untitled PDF") : "General Legal Note";
     const docMatch = docName.toLowerCase().includes(searchQuery.toLowerCase());
     return contentMatch || docMatch;
   });
@@ -105,13 +131,20 @@ export default function NotesPage() {
     <Shell>
       <div className="space-y-6 max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-primary">Central Legal Notes</h1>
             <p className="text-[13px] text-text-secondary">
               Review and manage your notes across all contract analyses.
             </p>
           </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-[13px] font-semibold rounded hover:bg-primary-light transition-colors shadow-xs shrink-0 self-start md:self-center"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add General Note</span>
+          </button>
         </div>
 
         {/* Notifications */}
@@ -159,7 +192,7 @@ export default function NotesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredNotes.map((note) => {
-              const docName = note.analyses?.filename || "Untitled Document";
+              const docName = note.document_id ? (note.analyses?.filename || "Untitled Document") : "General Legal Note";
               const isEditing = editingNoteId === note.id;
 
               return (
@@ -175,13 +208,15 @@ export default function NotesPage() {
                         {docName}
                       </span>
                     </div>
-                    <button 
-                      onClick={() => navigate(`/analysis/${note.document_id}`)}
-                      className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-light transition-colors shrink-0 pl-2"
-                    >
-                      <span>Analyze</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    {note.document_id && (
+                      <button 
+                        onClick={() => navigate(`/analysis/${note.document_id}`)}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-light transition-colors shrink-0 pl-2"
+                      >
+                        <span>Analyze</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Card Body */}
@@ -246,6 +281,71 @@ export default function NotesPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Modal for adding a general note */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white border border-border rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4 animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="font-bold text-[15px] text-primary">Add General Legal Note</h3>
+                <button 
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setNewNoteContent("");
+                  }}
+                  className="p-1 hover:bg-slate-100 rounded text-text-secondary transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateNote} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-text-secondary uppercase">Note Content</label>
+                  <textarea
+                    required
+                    placeholder="Write your general legal note here..."
+                    value={newNoteContent}
+                    onChange={(e) => setNewNoteContent(e.target.value)}
+                    rows={6}
+                    className="w-full px-3 py-2 border border-border rounded text-[13px] bg-background focus:outline-none focus:border-primary resize-none transition-all"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      setNewNoteContent("");
+                    }}
+                    className="px-3 py-2 border border-border rounded text-[11px] font-semibold text-text-secondary hover:text-primary transition-colors flex items-center gap-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Cancel</span>
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingNote || !newNoteContent.trim()}
+                    className="px-4 py-2 bg-primary hover:bg-primary-light text-white text-[11px] font-semibold rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    {creatingNote ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileEdit className="w-3.5 h-3.5" />
+                        <span>Create Note</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>

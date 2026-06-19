@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
+import { useAuth } from "@/lib/AuthContext";
 import { listAnalyses } from "@/lib/api";
 import { 
   FileText, 
@@ -15,6 +16,7 @@ import {
 
 export default function DocumentLibrary() {
   const navigate = useNavigate();
+  const { userRole } = useAuth();
   const [analyses, setAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,13 +86,15 @@ export default function DocumentLibrary() {
                 <List className="w-4 h-4" />
               </button>
             </div>
-            <button
-              onClick={() => navigate("/upload")}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Upload</span>
-            </button>
+            {userRole !== "client" && (
+              <button
+                onClick={() => navigate("/upload")}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -102,14 +106,16 @@ export default function DocumentLibrary() {
           <div className="bg-white border border-border rounded p-16 flex flex-col items-center justify-center text-center shadow-sm">
             <FileText className="w-12 h-12 text-text-muted mb-4" />
             <h3 className="font-semibold text-[15px] text-primary mb-1">
-              {searchTerm ? "No documents found" : "Your library is empty"}
+              {searchTerm ? "No documents found" : userRole === "client" ? "No shared documents" : "Your library is empty"}
             </h3>
             <p className="text-[13px] text-text-secondary max-w-md">
               {searchTerm 
                 ? "Try a different search term."
-                : "Upload your first document to start building your legal document library."}
+                : userRole === "client"
+                  ? "No documents have been shared with you yet. Ask your lawyer to share documents via the analysis page."
+                  : "Upload your first document to start building your legal document library."}
             </p>
-            {!searchTerm && (
+            {!searchTerm && userRole !== "client" && (
               <button
                 onClick={() => navigate("/upload")}
                 className="mt-4 px-5 py-2 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
