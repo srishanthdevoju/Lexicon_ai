@@ -91,9 +91,9 @@ npm run dev                   # Starts at http://localhost:5173
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | ✅ | API key for LLM provider |
-| `OPENAI_MODEL` | ✅ | Model name (e.g. `llama-3.3-70b-versatile`) |
-| `OPENAI_BASE_URL` | ❌ | Custom base URL (Groq, Together, etc.) |
+| `GROQ_API_KEY` | ✅ | API key for LLM provider (Groq) |
+| `GROQ_MODEL` | ✅ | Model name (e.g. `llama-3.1-8b-instant`) |
+| `GROQ_BASE_URL` | ❌ | Custom base URL (e.g. `https://api.groq.com/openai/v1`) |
 | `API_KEY` | ❌ | Optional endpoint protection key |
 | `SUPABASE_URL` | ❌ | Supabase project URL |
 | `SUPABASE_KEY` | ❌ | Supabase anon key |

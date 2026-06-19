@@ -8,9 +8,9 @@ dotenv_path = os.path.join(backend_root, ".env")
 load_dotenv(dotenv_path)
 
 class Settings(BaseSettings):
-    OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4-turbo"
-    OPENAI_BASE_URL: str = ""
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_BASE_URL: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
 

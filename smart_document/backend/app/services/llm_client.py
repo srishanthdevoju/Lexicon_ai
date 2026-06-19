@@ -35,17 +35,17 @@ class LLMClient:
         from dotenv import load_dotenv
         load_dotenv(dotenv_path, override=True)
 
-        api_key_raw = os.getenv("OPENAI_API_KEY", settings.OPENAI_API_KEY)
+        api_key_raw = os.getenv("GROQ_API_KEY", settings.GROQ_API_KEY) or os.getenv("OPENAI_API_KEY", "")
         self.api_keys = [k.strip() for k in api_key_raw.split(",") if k.strip()]
-        self.model = os.getenv("OPENAI_MODEL", settings.OPENAI_MODEL)
-        self.base_url = os.getenv("OPENAI_BASE_URL", settings.OPENAI_BASE_URL)
+        self.model = os.getenv("GROQ_MODEL", settings.GROQ_MODEL) or os.getenv("OPENAI_MODEL", "") or "llama-3.1-8b-instant"
+        self.base_url = os.getenv("GROQ_BASE_URL", settings.GROQ_BASE_URL) or os.getenv("OPENAI_BASE_URL", "")
         self._client = None
 
     @property
     def client(self) -> AsyncOpenAI:
         """Fallback client property returning client for the first configured key."""
         if not self.api_keys:
-            raise MissingAPIKeyError("OpenAI/Groq API Key is missing or not configured in the environment.")
+            raise MissingAPIKeyError("Groq API Key is missing or not configured in the environment.")
         if self._client is None:
             client_kwargs = {"api_key": self.api_keys[0]}
             if self.base_url and self.base_url.strip():
@@ -67,11 +67,11 @@ class LLMClient:
         from dotenv import load_dotenv
         load_dotenv(dotenv_path, override=True)
 
-        api_key_raw = os.getenv("OPENAI_API_KEY", settings.OPENAI_API_KEY)
+        api_key_raw = os.getenv("GROQ_API_KEY", settings.GROQ_API_KEY) or os.getenv("OPENAI_API_KEY", "")
         api_keys = [k.strip() for k in api_key_raw.split(",") if k.strip()]
 
         if not api_keys:
-            raise MissingAPIKeyError("OpenAI/Groq API Key is missing or not configured in the environment.")
+            raise MissingAPIKeyError("Groq API Key is missing or not configured in the environment.")
 
         last_error = None
         for attempt in range(1, self.MAX_RETRIES + 1):
@@ -98,7 +98,7 @@ class LLMClient:
                 response = await openai_client.chat.completions.create(**kwargs)
                 raw_content = response.choices[0].message.content
                 if not raw_content:
-                    raise LLMExecutionError("OpenAI/Groq returned an empty response.")
+                    raise LLMExecutionError("Groq returned an empty response.")
                 return raw_content
 
             except Exception as e:
@@ -120,11 +120,11 @@ class LLMClient:
                 else:
                     logger.error(f"LLM request failed after {self.MAX_RETRIES} attempts: {str(e)}", exc_info=True)
 
-        raise LLMExecutionError(f"OpenAI/Groq API call failed after {self.MAX_RETRIES} retries: {str(last_error)}")
+        raise LLMExecutionError(f"Groq API call failed after {self.MAX_RETRIES} retries: {str(last_error)}")
 
     async def analyze_document(self, document_text: str) -> LLMResponse:
         """
-        Calls OpenAI/Groq ChatCompletion in JSON mode to parse the document text.
+        Calls Groq ChatCompletion in JSON mode to parse the document text.
         """
         # Smart truncation for large documents to stay within free-tier TPM rate limits (e.g. 6,000 tokens)
         max_chars = 14000
