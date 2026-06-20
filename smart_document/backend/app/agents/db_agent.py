@@ -754,7 +754,7 @@ class DBAgent:
             if os.path.exists(local_deals_path):
                 try:
                     with open(local_deals_path, "r", encoding="utf-8") as f:
-                         deals = json.load(f)
+                        deals = json.load(f)
                 except Exception:
                     pass
             new_deal = {
@@ -869,4 +869,345 @@ class DBAgent:
                 except Exception:
                     pass
             return False
+=======
+>>>>>>> origin/main
 
+    async def get_lawyers(self) -> list:
+        """Fetches all registered lawyers from public.lawyers."""
+        supabase_client = self.client
+        def _execute():
+            return supabase_client.table("lawyers").select("*").order("name", desc=False).execute()
+        
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, _execute)
+        return response.data or []
+
+    # --- Auto-assignment Logic ---
+
+    async def get_least_busy_lawyer(self) -> dict:
+        """
+        Finds the lawyer with the fewest upcoming scheduled appointments.
+        Used for auto-assignment when client doesn't choose a specific lawyer.
+        Returns the lawyer record or None if no lawyers exist.
+        """
+        supabase_client = self.client
+        loop = asyncio.get_running_loop()
+
+        # 1. Get all lawyers
+        def _get_all_lawyers():
+            return supabase_client.table("lawyers").select("id, name, email, specialty").order("name", desc=False).execute()
+
+        lawyers_res = await loop.run_in_executor(None, _get_all_lawyers)
+        all_lawyers = lawyers_res.data or []
+
+        if not all_lawyers:
+            return None
+
+        # 2. Count upcoming scheduled appointments per lawyer
+        from datetime import date as date_type
+        today_str = date_type.today().isoformat()
+
+        def _get_upcoming_appointments():
+            return supabase_client.table("appointments").select("lawyer_id").eq("status", "scheduled").gte("appointment_date", today_str).execute()
+
+        appts_res = await loop.run_in_executor(None, _get_upcoming_appointments)
+        upcoming = appts_res.data or []
+
+        # Build count map
+        appt_counts = {}
+        for appt in upcoming:
+            lid = appt.get("lawyer_id")
+            if lid:
+                appt_counts[lid] = appt_counts.get(lid, 0) + 1
+
+        # 3. Find lawyer with fewest upcoming appointments
+        best_lawyer = None
+        min_count = float("inf")
+        for lawyer in all_lawyers:
+            count = appt_counts.get(lawyer["id"], 0)
+            if count < min_count:
+                min_count = count
+                best_lawyer = lawyer
+
+        return best_lawyer
+
+    async def create_appointment(self, client_id: str, lawyer_id: str, client_name: str, lawyer_name: str, title: str, description: str, date: str, time: str, share_phone_with_lawyer: bool = False) -> dict:
+        """Creates a new scheduled consultation in the appointments table."""
+        supabase_client = self.client
+        data = {
+            "client_id": client_id,
+            "lawyer_id": lawyer_id,
+            "title": title,
+            "description": description,
+            "appointment_date": date,
+            "appointment_time": time,
+            "status": "scheduled",
+            "share_phone_with_lawyer": share_phone_with_lawyer
+        }
+        def _execute():
+            return supabase_client.table("appointments").insert(data).execute()
+        
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, _execute)
+        res_data = response.data[0] if response.data else {}
+        if res_data:
+            res_data["client_name"] = client_name
+            res_data["lawyer_name"] = lawyer_name
+        return res_data
+
+    async def get_appointments(self, user_id: str, role: str) -> list:
+        """Fetches appointments for the user, including related client/lawyer names and phone numbers."""
+        supabase_client = self.client
+        def _execute():
+            query = supabase_client.table("appointments").select("*")
+            if role == "client":
+                query = query.eq("client_id", user_id)
+            else:
+                query = query.eq("lawyer_id", user_id)
+            return query.order("appointment_date", desc=False).order("appointment_time", desc=False).execute()
+        
+        loop = asyncio.get_running_loop()
+        res = await loop.run_in_executor(None, _execute)
+        appointments = res.data or []
+        
+        if not appointments:
+            return []
+            
+        # Enrich appointments with names from profiles
+        user_ids = set()
+        for appt in appointments:
+            user_ids.add(appt["client_id"])
+            if appt.get("lawyer_id"):
+                user_ids.add(appt["lawyer_id"])
+            
+        if user_ids:
+            def _fetch_profiles():
+                return supabase_client.table("profiles").select("id, name, phone").in_("id", list(user_ids)).execute()
+            
+            profiles_res = await loop.run_in_executor(None, _fetch_profiles)
+            profile_map = {p["id"]: p for p in (profiles_res.data or [])}
+            
+            for appt in appointments:
+                client_id = appt["client_id"]
+                lawyer_id = appt.get("lawyer_id")
+                
+                appt["client_name"] = profile_map.get(client_id, {}).get("name", "Unknown Client")
+                appt["lawyer_name"] = profile_map.get(lawyer_id, {}).get("name", "Unknown Lawyer")
+                
+                # Check status and role visibility
+                is_active = appt["status"] in ("accepted", "completed")
+                
+                # Always hide by default
+                appt["client_phone"] = None
+                appt["lawyer_phone"] = None
+                
+                if is_active:
+                    # Client can see lawyer's phone number
+                    if lawyer_id and lawyer_id in profile_map:
+                        appt["lawyer_phone"] = profile_map[lawyer_id].get("phone")
+                    
+                    # Lawyer can see client's phone number only if share_phone_with_lawyer is True
+                    if appt.get("share_phone_with_lawyer"):
+                        appt["client_phone"] = profile_map.get(client_id, {}).get("phone")
+                
+        return appointments
+
+    async def update_appointment(self, appointment_id: int, status: str) -> dict:
+        """Updates the status of an appointment. Generates a meeting link when accepted."""
+        supabase_client = self.client
+        
+        update_data = {"status": status}
+        
+        # Generate a deterministic meeting link when accepting
+        if status == "accepted":
+            meeting_link = f"https://meet.jit.si/lexicon-meeting-{appointment_id}"
+            update_data["meeting_link"] = meeting_link
+        
+        def _execute():
+            return supabase_client.table("appointments").update(update_data).eq("id", appointment_id).execute()
+        
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, _execute)
+        return response.data[0] if response.data else {}
+
+    # --- Profile Completion (Google OAuth) ---
+
+    async def complete_profile(self, user_id: str, email: str, name: str, role: str) -> dict:
+        """
+        Completes a user's profile after Google OAuth.
+        Updates the profiles table role and inserts into lawyers/clients table.
+        """
+        supabase_client = self.client
+        loop = asyncio.get_running_loop()
+
+        # 1. Update the profile role and name
+        def _update_profile():
+            return supabase_client.table("profiles").update({
+                "role": role,
+                "name": name
+            }).eq("id", user_id).execute()
+
+        await loop.run_in_executor(None, _update_profile)
+
+        # 2. Insert into the appropriate role table
+        if role == "lawyer":
+            def _insert_lawyer():
+                return supabase_client.table("lawyers").upsert({
+                    "id": user_id,
+                    "name": name,
+                    "email": email,
+                    "specialty": "General Counsel"
+                }).execute()
+
+            await loop.run_in_executor(None, _insert_lawyer)
+        elif role == "client":
+            def _insert_client():
+                return supabase_client.table("clients").upsert({
+                    "id": user_id,
+                    "name": name,
+                    "email": email
+                }).execute()
+
+            await loop.run_in_executor(None, _insert_client)
+
+        # 3. Return the updated profile
+        def _get_profile():
+            return supabase_client.table("profiles").select("*").eq("id", user_id).single().execute()
+
+        result = await loop.run_in_executor(None, _get_profile)
+        return result.data or {}
+
+    # --- Contacts & Direct Messaging ---
+
+    async def get_contacts(self, user_id: str, role: str) -> list:
+        """
+        Gets contacts for a user based on accepted/completed appointments.
+        Clients see their connected lawyers; lawyers see their connected clients.
+        """
+        supabase_client = self.client
+        loop = asyncio.get_running_loop()
+
+        def _get_appointments():
+            query = supabase_client.table("appointments").select("client_id, lawyer_id, share_phone_with_lawyer")
+            if role == "client":
+                query = query.eq("client_id", user_id)
+            else:
+                query = query.eq("lawyer_id", user_id)
+            return query.in_("status", ["accepted", "completed"]).execute()
+
+        appts_res = await loop.run_in_executor(None, _get_appointments)
+        appointments = appts_res.data or []
+
+        if not appointments:
+            return []
+
+        # Collect unique contact IDs (the other party) and phone visibility permissions
+        contact_ids = set()
+        share_allowed_contacts = set()
+        for appt in appointments:
+            if role == "client":
+                if appt.get("lawyer_id"):
+                    contact_ids.add(appt["lawyer_id"])
+                    share_allowed_contacts.add(appt["lawyer_id"]) # Always see lawyer phone if accepted
+            else:
+                contact_ids.add(appt["client_id"])
+                if appt.get("share_phone_with_lawyer"):
+                    share_allowed_contacts.add(appt["client_id"]) # See client phone if shared
+
+        if not contact_ids:
+            return []
+
+        # Fetch profile details for contacts
+        def _get_profiles():
+            return supabase_client.table("profiles").select("id, name, email, role, phone").in_("id", list(contact_ids)).execute()
+
+        profiles_res = await loop.run_in_executor(None, _get_profiles)
+        contacts = []
+        for p in (profiles_res.data or []):
+            contact = {
+                "id": p["id"],
+                "name": p["name"],
+                "email": p["email"],
+                "role": p["role"],
+                "phone": p.get("phone") if p["id"] in share_allowed_contacts else None,
+                "specialty": None
+            }
+            # Add specialty for lawyers
+            if p["role"] == "lawyer":
+                def _get_lawyer_info(lid=p["id"]):
+                    return supabase_client.table("lawyers").select("specialty").eq("id", lid).execute()
+                try:
+                    lawyer_res = await loop.run_in_executor(None, _get_lawyer_info)
+                    if lawyer_res.data:
+                        contact["specialty"] = lawyer_res.data[0].get("specialty")
+                except Exception:
+                    pass
+            contacts.append(contact)
+
+        return contacts
+
+    async def get_direct_messages(self, user_id: str, contact_id: str) -> list:
+        """Fetches direct messages between two users."""
+        supabase_client = self.client
+        loop = asyncio.get_running_loop()
+
+        def _execute():
+            # Get messages where either user is sender and other is receiver
+            return supabase_client.table("direct_messages").select("*").or_(
+                f"and(sender_id.eq.{user_id},receiver_id.eq.{contact_id}),and(sender_id.eq.{contact_id},receiver_id.eq.{user_id})"
+            ).order("created_at", desc=False).execute()
+
+        response = await loop.run_in_executor(None, _execute)
+        return response.data or []
+
+    async def send_direct_message(self, sender_id: str, receiver_id: str, sender_name: str, sender_role: str, content: str) -> dict:
+        """Sends a direct message between two users."""
+        supabase_client = self.client
+        loop = asyncio.get_running_loop()
+
+        data = {
+            "sender_id": sender_id,
+            "receiver_id": receiver_id,
+            "sender_name": sender_name,
+            "sender_role": sender_role,
+            "content": content
+        }
+
+        def _execute():
+            return supabase_client.table("direct_messages").insert(data).execute()
+
+        response = await loop.run_in_executor(None, _execute)
+        return response.data[0] if response.data else {}
+
+    # --- Profile Phone & Availability Slot updates ---
+
+    async def update_profile_phone(self, user_id: str, role: str, phone: str) -> dict:
+        """Updates the phone number in profiles and role-specific tables."""
+        supabase_client = self.client
+        loop = asyncio.get_running_loop()
+        
+        # Update profiles table
+        def _update_p():
+            return supabase_client.table("profiles").update({"phone": phone}).eq("id", user_id).execute()
+        await loop.run_in_executor(None, _update_p)
+        
+        # Update role-specific table
+        if role == "lawyer":
+            def _update_l():
+                return supabase_client.table("lawyers").update({"phone": phone}).eq("id", user_id).execute()
+            await loop.run_in_executor(None, _update_l)
+        elif role == "client":
+            def _update_c():
+                return supabase_client.table("clients").update({"phone": phone}).eq("id", user_id).execute()
+            await loop.run_in_executor(None, _update_c)
+            
+        return {"success": True, "phone": phone}
+
+    async def update_lawyer_slots(self, lawyer_id: str, slots: str) -> dict:
+        """Updates availability slots for a lawyer."""
+        supabase_client = self.client
+        loop = asyncio.get_running_loop()
+        def _execute():
+            return supabase_client.table("lawyers").update({"available_slots": slots}).eq("id", lawyer_id).execute()
+        res = await loop.run_in_executor(None, _execute)
+        return res.data[0] if res.data else {}
