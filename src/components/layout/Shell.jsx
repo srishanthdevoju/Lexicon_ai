@@ -151,8 +151,14 @@ export default function Shell({ children }) {
       return;
     }
 
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
+    if (window.speechSynthesis.speaking || window.activeFallbackAudio) {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
+      if (window.activeFallbackAudio) {
+        window.activeFallbackAudio.pause();
+        window.activeFallbackAudio = null;
+      }
       if (speakingMsgIdx === idx) {
         setSpeakingMsgIdx(null);
         return;
@@ -161,8 +167,67 @@ export default function Shell({ children }) {
 
     // Clean formatting characters to sound more natural
     const cleanText = text
-      .replace(/```[\s\S]*?```/g, "[Code segment omitted]")
+      .replace(/```[\s\S]*?```/g, "")
       .replace(/[*_#\-`]/g, "");
+
+    // Fallback for Telugu (te-IN) if native Telugu voice is missing
+    if (voiceLang.startsWith("te")) {
+      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      const matchingVoice = voices.find(v => v.lang.startsWith("te"));
+      
+      if (!matchingVoice) {
+        try {
+          const sentences = cleanText.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [cleanText];
+          const chunks = [];
+          let currentChunk = "";
+          for (const sentence of sentences) {
+            if ((currentChunk + sentence).length > 180) {
+              if (currentChunk) chunks.push(currentChunk.trim());
+              currentChunk = sentence;
+            } else {
+              currentChunk += (currentChunk ? " " : "") + sentence;
+            }
+          }
+          if (currentChunk) {
+            chunks.push(currentChunk.trim());
+          }
+
+          if (chunks.length === 0) return;
+
+          let chunkIndex = 0;
+          const playNextChunk = () => {
+            if (chunkIndex >= chunks.length) {
+              setSpeakingMsgIdx(null);
+              window.activeFallbackAudio = null;
+              return;
+            }
+            const chunkText = chunks[chunkIndex];
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunkText)}&tl=te&client=tw-ob`;
+            const audio = new Audio(url);
+            window.activeFallbackAudio = audio;
+            audio.onended = () => {
+              chunkIndex++;
+              playNextChunk();
+            };
+            audio.onerror = () => {
+              setSpeakingMsgIdx(null);
+              window.activeFallbackAudio = null;
+            };
+            audio.play().catch(err => {
+              console.error("Audio playback failed:", err);
+              setSpeakingMsgIdx(null);
+              window.activeFallbackAudio = null;
+            });
+          };
+
+          setSpeakingMsgIdx(idx);
+          playNextChunk();
+          return;
+        } catch (err) {
+          console.error("Google TTS fallback failed:", err);
+        }
+      }
+    }
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = voiceLang;
@@ -228,8 +293,14 @@ export default function Shell({ children }) {
     setInput("");
     setTyping(true);
 
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    if (window.speechSynthesis || window.activeFallbackAudio) {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (window.activeFallbackAudio) {
+        window.activeFallbackAudio.pause();
+        window.activeFallbackAudio = null;
+      }
       setSpeakingMsgIdx(null);
     }
     
