@@ -1,11 +1,5 @@
 # ⚖️ Lexicon AI — Legal Document Intelligence & Practice Management Platform
 
-[![Frontend Tech Stack](https://img.shields.io/badge/Frontend-React%2019%20%7C%20Vite%20%7C%20Tailwind%20v4-blue.svg)](https://react.dev)
-[![Backend Tech Stack](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.10%2B-emerald.svg)](https://fastapi.tiangolo.com)
-[![Database](https://img.shields.io/badge/Database-Supabase%20%7C%20PostgreSQL-darkgreen.svg)](https://supabase.com)
-[![AI Stack](https://img.shields.io/badge/AI%20Engine-Groq%20%7C%20OpenAI%20JSON%20Mode-violet.svg)](https://groq.com)
-[![License](https://img.shields.io/badge/License-MIT-orange.svg)](#)
-
 Lexicon AI is an enterprise-grade Legal Tech and Practice Management platform. It automates legal document ingestion, executes a parallel multi-agent AI pipeline for clause analysis and risk classification, offers interactive negotiation sandboxes, manages scheduling/billing, and features real-time client-attorney collaboration — backed by Supabase cloud storage and local fallback cache mechanics.
 
 ---

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { getAnalysis, chatWithDocument } from "@/lib/api";
 import { useTranslation } from "@/lib/LanguageContext";
+import ChatMarkdown from "@/components/ChatMarkdown";
 import { 
   Scale, 
   FileText, 
@@ -120,6 +121,16 @@ export default function Shell({ children }) {
     };
   }, []);
 
+  // Preload speech synthesis voices (Chrome loads them async)
+  useEffect(() => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
   // Dynamically update recognition language on selection change
   useEffect(() => {
     if (recognitionRef.current) {
@@ -168,118 +179,123 @@ export default function Shell({ children }) {
     // Clean formatting characters to sound more natural
     const cleanText = text
       .replace(/```[\s\S]*?```/g, "")
-      .replace(/[*_#\-`]/g, "");
+      .replace(/[*_#\-`]/g, "")
+      .trim();
 
-    // Fallback for Telugu (te-IN) if native Telugu voice is missing
-    if (voiceLang.startsWith("te")) {
-      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-      const matchingVoice = voices.find(v => v.lang.startsWith("te"));
-      
-      if (!matchingVoice) {
-        try {
-          // Robust Telugu sentence-to-chunk parser ensuring all chunks are <= 180 characters
-          const sentences = cleanText.match(/[^.!?\n]+[.!?\n]+(\s|$)|[^.!?\n]+$/g) || [cleanText];
-          const chunks = [];
-          let currentChunk = "";
+    if (!cleanText) return;
 
-          const addChunk = (text) => {
-            text = text.trim();
-            if (!text) return;
-            if (text.length <= 180) {
-              chunks.push(text);
+    // Helper: split text into chunks <= maxLen characters for Google TTS
+    const splitIntoChunks = (text, maxLen = 180) => {
+      const sentences = text.match(/[^.!?\n]+[.!?\n]+(\s|$)|[^.!?\n]+$/g) || [text];
+      const chunks = [];
+      let currentChunk = "";
+
+      const addChunk = (t) => {
+        t = t.trim();
+        if (!t) return;
+        if (t.length <= maxLen) {
+          chunks.push(t);
+        } else {
+          const words = t.split(/\s+/);
+          let subChunk = "";
+          for (const word of words) {
+            if ((subChunk + " " + word).trim().length > maxLen) {
+              if (subChunk) chunks.push(subChunk.trim());
+              subChunk = word;
             } else {
-              // Split long sentences by words to avoid exceeding API limits
-              const words = text.split(/\s+/);
-              let subChunk = "";
-              for (const word of words) {
-                if ((subChunk + " " + word).trim().length > 180) {
-                  if (subChunk) chunks.push(subChunk.trim());
-                  subChunk = word;
-                } else {
-                  subChunk += (subChunk ? " " : "") + word;
-                }
-              }
-              if (subChunk) {
-                chunks.push(subChunk.trim());
-              }
-            }
-          };
-
-          for (const sentence of sentences) {
-            if ((currentChunk + " " + sentence).trim().length > 180) {
-              if (currentChunk) {
-                addChunk(currentChunk);
-              }
-              currentChunk = sentence;
-            } else {
-              currentChunk += (currentChunk ? " " : "") + sentence;
+              subChunk += (subChunk ? " " : "") + word;
             }
           }
-          if (currentChunk) {
-            addChunk(currentChunk);
-          }
+          if (subChunk) chunks.push(subChunk.trim());
+        }
+      };
 
-          if (chunks.length === 0) return;
-
-          let chunkIndex = 0;
-          const playNextChunk = () => {
-            if (chunkIndex >= chunks.length) {
-              setSpeakingMsgIdx(null);
-              window.activeFallbackAudio = null;
-              return;
-            }
-            const chunkText = chunks[chunkIndex];
-            // Use translate.googleapis.com with client=gtx to avoid CORS/Forbidden errors
-            const url = `https://translate.googleapis.com/translate_tts?client=gtx&tl=te&ie=UTF-8&q=${encodeURIComponent(chunkText)}`;
-            const audio = new Audio(url);
-            window.activeFallbackAudio = audio;
-            audio.onended = () => {
-              chunkIndex++;
-              playNextChunk();
-            };
-            audio.onerror = (e) => {
-              console.error("Audio playback error:", e);
-              setSpeakingMsgIdx(null);
-              window.activeFallbackAudio = null;
-            };
-            audio.play().catch(err => {
-              console.error("Audio playback failed:", err);
-              setSpeakingMsgIdx(null);
-              window.activeFallbackAudio = null;
-            });
-          };
-
-          setSpeakingMsgIdx(idx);
-          playNextChunk();
-          return;
-        } catch (err) {
-          console.error("Google TTS fallback failed:", err);
+      for (const sentence of sentences) {
+        if ((currentChunk + " " + sentence).trim().length > maxLen) {
+          if (currentChunk) addChunk(currentChunk);
+          currentChunk = sentence;
+        } else {
+          currentChunk += (currentChunk ? " " : "") + sentence;
         }
       }
-    }
+      if (currentChunk) addChunk(currentChunk);
+      return chunks;
+    };
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = voiceLang;
+    // Helper: play chunks via Google Translate TTS
+    const playGoogleTTS = (chunks, langCode) => {
+      if (chunks.length === 0) return;
+      let chunkIndex = 0;
+      const playNextChunk = () => {
+        if (chunkIndex >= chunks.length) {
+          setSpeakingMsgIdx(null);
+          window.activeFallbackAudio = null;
+          return;
+        }
+        const chunkText = chunks[chunkIndex];
+        const url = `https://translate.googleapis.com/translate_tts?client=gtx&tl=${langCode}&ie=UTF-8&q=${encodeURIComponent(chunkText)}`;
+        const audio = new Audio(url);
+        window.activeFallbackAudio = audio;
+        audio.onended = () => {
+          chunkIndex++;
+          playNextChunk();
+        };
+        audio.onerror = (e) => {
+          console.error("Google TTS audio error for chunk:", chunkText, e);
+          setSpeakingMsgIdx(null);
+          window.activeFallbackAudio = null;
+        };
+        audio.play().catch(err => {
+          console.error("Google TTS playback failed:", err);
+          setSpeakingMsgIdx(null);
+          window.activeFallbackAudio = null;
+        });
+      };
+      setSpeakingMsgIdx(idx);
+      playNextChunk();
+    };
 
-    // Try finding matching language voice
-    if (window.speechSynthesis) {
+    // Helper: speak using native SpeechSynthesis with a specific voice
+    const speakNative = (voice) => {
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = voiceLang;
+      if (voice) utterance.voice = voice;
+      utterance.onend = () => setSpeakingMsgIdx(null);
+      utterance.onerror = () => setSpeakingMsgIdx(null);
+      setSpeakingMsgIdx(idx);
+      window.speechSynthesis.speak(utterance);
+    };
+
+    // For non-English languages (Telugu, Hindi), prefer Google TTS for reliable pronunciation
+    const langPrefix = voiceLang.split("-")[0];
+    if (langPrefix !== "en") {
+      // First check if a high-quality native voice exists for this language
       const voices = window.speechSynthesis.getVoices();
-      const matchingVoice = voices.find(v => v.lang.startsWith(voiceLang.split('-')[0]));
-      if (matchingVoice) {
-        utterance.voice = matchingVoice;
+      const nativeVoice = voices.find(v => v.lang.startsWith(langPrefix) && !v.localService) 
+                       || voices.find(v => v.lang.startsWith(langPrefix));
+
+      if (nativeVoice) {
+        speakNative(nativeVoice);
+      } else {
+        // No native voice found — use Google Translate TTS fallback
+        try {
+          const chunks = splitIntoChunks(cleanText);
+          if (chunks.length > 0) {
+            playGoogleTTS(chunks, langPrefix);
+          }
+        } catch (err) {
+          console.error("Google TTS fallback failed:", err);
+          alert("Telugu/Hindi text-to-speech is not available. Please install a Telugu voice pack in your OS settings, or use Google Chrome which includes built-in Telugu voices.");
+          setSpeakingMsgIdx(null);
+        }
       }
+      return;
     }
-    
-    utterance.onend = () => {
-      setSpeakingMsgIdx(null);
-    };
 
-    utterance.onerror = () => {
-      setSpeakingMsgIdx(null);
-    };
-
-    setSpeakingMsgIdx(idx);
-    window.speechSynthesis.speak(utterance);
+    // English — use native SpeechSynthesis
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoice = voices.find(v => v.lang.startsWith("en"));
+    speakNative(englishVoice || null);
   };
 
   const [activeDocName, setActiveDocName] = useState(() => t("activeDocLoading", "common"));
@@ -770,7 +786,7 @@ export default function Shell({ children }) {
                         ? "bg-primary text-white rounded-tr-none" 
                         : "bg-white border border-border text-primary rounded-tl-none"
                     }`}>
-                      {msg.content}
+                      {msg.role === "assistant" ? <ChatMarkdown text={msg.content} /> : msg.content}
                     </div>
                     {msg.role === "assistant" && (
                       <div className="flex items-center gap-1 pl-1">
