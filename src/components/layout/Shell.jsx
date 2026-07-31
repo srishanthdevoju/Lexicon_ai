@@ -369,8 +369,8 @@ export default function Shell({ children }) {
   const mainNavLinks = [
     { label: t("dashboard", "nav"), path: "/dashboard" },
     { label: t("library", "nav"), path: "/library" },
-    { label: "AI Negotiator", path: "/negotiate" },
-    { label: "Analytics", path: "/analytics" }
+    { label: t("aiNegotiator", "nav"), path: "/negotiate" },
+    { label: t("analytics", "nav"), path: "/analytics" }
   ];
 
   const handleSignOut = async () => {
@@ -685,7 +685,7 @@ export default function Shell({ children }) {
                     }`}
                   >
                     <Bot className="w-4 h-4 text-purple-600" />
-                    <span>AI Negotiator Sandbox</span>
+                    <span>{t("aiNegotiatorSandbox", "nav")}</span>
                   </Link>
 
                   <Link
@@ -697,7 +697,7 @@ export default function Shell({ children }) {
                     }`}
                   >
                     <TrendingUp className="w-4 h-4 text-rose-600" />
-                    <span>Portfolio Analytics</span>
+                    <span>{t("portfolioAnalytics", "nav")}</span>
                   </Link>
                 </nav>
               </div>

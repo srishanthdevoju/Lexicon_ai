@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Shell from "@/components/layout/Shell";
 import { useAuth } from "@/lib/AuthContext";
+import { useTranslation } from "@/lib/LanguageContext";
 import { supabase } from "@/lib/supabase";
 import { getAppointments, createAppointment, updateAppointment, getLawyers, createPaymentOrder, verifyPayment } from "@/lib/api";
 import { 
@@ -19,6 +20,8 @@ import {
 
 export default function AppointmentsPage() {
   const { user, userRole } = useAuth();
+  const { t, lang } = useTranslation();
+
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -77,7 +80,6 @@ export default function AppointmentsPage() {
     if (userRole !== "client") return;
     setLoadingLawyers(true);
     try {
-      // Query Supabase directly first for robustness and speed
       const { data, error } = await supabase
         .from("lawyers")
         .select("*")
@@ -243,6 +245,7 @@ export default function AppointmentsPage() {
       setPayingId(null);
     }
   };
+
   // Group appointments into upcoming and past
   const now = new Date();
   const getApptDateTime = (appt) => new Date(`${appt.appointment_date}T${appt.appointment_time}`);
@@ -260,8 +263,18 @@ export default function AppointmentsPage() {
 
   // Calendar utilities
   const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    t("january", "appointments"),
+    t("february", "appointments"),
+    t("march", "appointments"),
+    t("april", "appointments"),
+    t("may", "appointments"),
+    t("june", "appointments"),
+    t("july", "appointments"),
+    t("august", "appointments"),
+    t("september", "appointments"),
+    t("october", "appointments"),
+    t("november", "appointments"),
+    t("december", "appointments")
   ];
   const getDaysInMonth = (m, y) => new Date(y, m + 1, 0).getDate();
   const getFirstDayOfMonth = (m, y) => new Date(y, m, 1).getDay();
@@ -287,14 +300,12 @@ export default function AppointmentsPage() {
   const daysInMonth = getDaysInMonth(calendarMonth, calendarYear);
   const firstDay = getFirstDayOfMonth(calendarMonth, calendarYear);
 
-  // Format a day number into "YYYY-MM-DD" for the current calendar month/year
   const getFormattedDateStr = (day) => {
     const mm = String(calendarMonth + 1).padStart(2, "0");
     const dd = String(day).padStart(2, "0");
     return `${calendarYear}-${mm}-${dd}`;
   };
 
-  // Return appointments that fall on a given date string
   const getAppointmentsForDate = (dateStr) =>
     appointments.filter((a) => a.appointment_date === dateStr);
 
@@ -314,21 +325,21 @@ export default function AppointmentsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-primary">
-              {userRole === "client" ? "Consultation Scheduling" : "Client Consultations"}
+              {userRole === "client" ? t("schedulingTitle", "appointments") : t("lawyerTitle", "appointments")}
             </h1>
             <p className="text-[13px] text-text-secondary">
               {userRole === "client" 
-                ? "Schedule and manage video or legal advisory calls with your assigned counsel." 
-                : "Manage client consultation requests, advisory sessions, and status updates."}
+                ? t("schedulingSub", "appointments") 
+                : t("lawyerSub", "appointments")}
             </p>
           </div>
           {userRole === "client" && (
             <button
               onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-[13px] font-semibold rounded hover:bg-primary-light transition-colors shadow-xs shrink-0 self-start sm:self-center"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-[13px] font-semibold rounded hover:bg-primary-light transition-colors shadow-xs shrink-0 self-start sm:self-center cursor-pointer"
             >
               {showForm ? <ChevronRight className="w-4 h-4 rotate-90" /> : <Plus className="w-4 h-4" />}
-              <span>{showForm ? "Cancel Scheduling" : "Schedule Consultation"}</span>
+              <span>{showForm ? t("cancelScheduling", "appointments") : t("scheduleConsultation", "appointments")}</span>
             </button>
           )}
         </div>
@@ -350,10 +361,10 @@ export default function AppointmentsPage() {
         {/* Main Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* LEFT COLUMN: Sidebar (Calendar & Client Info/Forms) */}
+          {/* LEFT COLUMN: Sidebar (Calendar & Client Forms) */}
           <div className={userRole === "client" ? "lg:col-span-5 space-y-6" : "lg:col-span-4 space-y-6"}>
 
-            {/* SHARED VISUAL CALENDAR: Calendar Month picker & indicators */}
+            {/* SHARED VISUAL CALENDAR */}
             <div className="bg-white border border-border rounded-lg p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-[13px] text-primary">
@@ -363,14 +374,14 @@ export default function AppointmentsPage() {
                   <button
                     type="button"
                     onClick={handlePrevMonth}
-                    className="p-1 hover:bg-slate-100 rounded border border-border text-text-secondary transition-colors"
+                    className="p-1 hover:bg-slate-100 rounded border border-border text-text-secondary transition-colors cursor-pointer"
                   >
                     <ChevronRight className="w-3.5 h-3.5 rotate-180" />
                   </button>
                   <button
                     type="button"
                     onClick={handleNextMonth}
-                    className="p-1 hover:bg-slate-100 rounded border border-border text-text-secondary transition-colors"
+                    className="p-1 hover:bg-slate-100 rounded border border-border text-text-secondary transition-colors cursor-pointer"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -378,13 +389,13 @@ export default function AppointmentsPage() {
               </div>
 
               <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-text-secondary uppercase mb-2">
-                <span>Sun</span>
-                <span>Mon</span>
-                <span>Tue</span>
-                <span>Wed</span>
-                <span>Thu</span>
-                <span>Fri</span>
-                <span>Sat</span>
+                <span>{t("sun", "appointments")}</span>
+                <span>{t("mon", "appointments")}</span>
+                <span>{t("tue", "appointments")}</span>
+                <span>{t("wed", "appointments")}</span>
+                <span>{t("thu", "appointments")}</span>
+                <span>{t("fri", "appointments")}</span>
+                <span>{t("sat", "appointments")}</span>
               </div>
 
               <div className="grid grid-cols-7 gap-1">
@@ -418,10 +429,9 @@ export default function AppointmentsPage() {
                       key={`day-${day}`}
                       type="button"
                       onClick={() => setSelectedDateStr(isSelected ? "" : dateStr)}
-                      className={`h-8 w-full rounded flex flex-col items-center justify-center text-[11px] font-semibold relative transition-all ${cellStyle}`}
+                      className={`h-8 w-full rounded flex flex-col items-center justify-center text-[11px] font-semibold relative transition-all cursor-pointer ${cellStyle}`}
                     >
                       <span>{day}</span>
-                      {/* Indicators Container */}
                       <div className="absolute bottom-0.5 flex gap-0.5">
                         {hasScheduled && (
                           <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500 animate-pulse'}`}></span>
@@ -441,13 +451,13 @@ export default function AppointmentsPage() {
               {/* Legend */}
               <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-[9px] text-text-secondary">
                 <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Upcoming
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {t("legendUpcoming", "appointments")}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Completed
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> {t("legendCompleted", "appointments")}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-risk-red"></span> Cancelled
+                  <span className="w-1.5 h-1.5 rounded-full bg-risk-red"></span> {t("legendCancelled", "appointments")}
                 </span>
               </div>
             </div>
@@ -456,17 +466,17 @@ export default function AppointmentsPage() {
             {userRole === "client" && showForm && (
               <form onSubmit={handleScheduleSubmit} className="bg-white border border-border rounded-lg p-5 shadow-md space-y-4 animate-in fade-in zoom-in-95 duration-200">
                 <div className="border-b border-border pb-2">
-                  <h3 className="font-bold text-[13px] text-primary">Request Consultation</h3>
+                  <h3 className="font-bold text-[13px] text-primary">{t("requestConsultation", "appointments")}</h3>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-text-secondary uppercase">Select Counsel</label>
+                  <label className="text-[10px] font-bold text-text-secondary uppercase">{t("selectCounsel", "appointments")}</label>
                   <select
                     value={selectedLawyerId}
                     onChange={(e) => setSelectedLawyerId(e.target.value)}
                     className="w-full px-3 py-2 border border-border rounded text-[13px] bg-background focus:outline-none focus:border-primary transition-all"
                   >
-                    <option value="">Any Available Lawyer (Auto-assign)</option>
+                    <option value="">{t("anyAvailable", "appointments")}</option>
                     {lawyers.map((l) => (
                       <option key={l.id} value={l.id}>
                         {l.name} {l.specialty ? `(${l.specialty})` : ""}
@@ -476,11 +486,11 @@ export default function AppointmentsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-text-secondary uppercase">Consultation Topic</label>
+                  <label className="text-[10px] font-bold text-text-secondary uppercase">{t("topic", "appointments")}</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Agreement Auditing, Clause Redrafting"
+                    placeholder={t("topicPlaceholder", "appointments")}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-3 py-2 border border-border rounded text-[13px] bg-background focus:outline-none focus:border-primary transition-all"
@@ -488,9 +498,9 @@ export default function AppointmentsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-text-secondary uppercase">Brief Description / Notes</label>
+                  <label className="text-[10px] font-bold text-text-secondary uppercase">{t("description", "appointments")}</label>
                   <textarea
-                    placeholder="Add details, document questions, or issues you wish to discuss."
+                    placeholder={t("descriptionPlaceholder", "appointments")}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
@@ -500,7 +510,7 @@ export default function AppointmentsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-text-secondary uppercase">Select Date</label>
+                    <label className="text-[10px] font-bold text-text-secondary uppercase">{t("selectDate", "appointments")}</label>
                     <input
                       type="date"
                       required
@@ -510,14 +520,14 @@ export default function AppointmentsPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-text-secondary uppercase">Select Time Slot</label>
+                    <label className="text-[10px] font-bold text-text-secondary uppercase">{t("selectTime", "appointments")}</label>
                     <select
                       required
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
                       className="w-full px-3 py-2 border border-border rounded text-[13px] bg-white focus:outline-none focus:border-primary transition-all"
                     >
-                      <option value="">Choose time slot...</option>
+                      <option value="">{t("chooseTime", "appointments")}</option>
                       {slots.map((s, idx) => (
                         <option key={idx} value={s}>{s}</option>
                       ))}
@@ -534,24 +544,24 @@ export default function AppointmentsPage() {
                     className="w-3.5 h-3.5 border-border rounded text-primary focus:ring-primary/20 cursor-pointer"
                   />
                   <label htmlFor="sharePhone" className="cursor-pointer font-medium leading-tight">
-                    Share my phone number with this lawyer once they accept my request
+                    {t("sharePhone", "appointments")}
                   </label>
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-2 bg-primary hover:bg-primary-light text-white text-[12px] font-semibold rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full py-2 bg-primary hover:bg-primary-light text-white text-[12px] font-semibold rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                 >
                   {submitting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Submitting Request...</span>
+                      <span>{t("submitting", "appointments")}</span>
                     </>
                   ) : (
                     <>
                       <Calendar className="w-4 h-4" />
-                      <span>Submit Schedule Request</span>
+                      <span>{t("submitRequest", "appointments")}</span>
                     </>
                   )}
                 </button>
@@ -567,13 +577,13 @@ export default function AppointmentsPage() {
               <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-border rounded-lg text-xs text-text-secondary animate-in slide-in-from-top-1 duration-200">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-primary" />
-                  <span>Showing consultations on <strong className="text-primary">{selectedDateStr}</strong></span>
+                  <span>{t("showingConsultationsOn", "appointments")} <strong className="text-primary">{selectedDateStr}</strong></span>
                 </span>
                 <button 
                   onClick={() => setSelectedDateStr("")}
-                  className="text-primary hover:text-primary-light font-semibold hover:underline"
+                  className="text-primary hover:text-primary-light font-semibold hover:underline cursor-pointer"
                 >
-                  Clear Filter
+                  {t("clearFilter", "appointments")}
                 </button>
               </div>
             )}
@@ -582,38 +592,38 @@ export default function AppointmentsPage() {
             {loading ? (
               <div className="p-20 flex flex-col items-center justify-center bg-white border border-border rounded-lg shadow-xs">
                 <RefreshCw className="w-6 h-6 text-primary animate-spin mb-2" />
-                <span className="text-xs text-text-secondary">Fetching consultations schedule...</span>
+                <span className="text-xs text-text-secondary">{t("loading", "common")}</span>
               </div>
             ) : appointments.length === 0 ? (
               <div className="p-20 flex flex-col items-center justify-center bg-white border border-border rounded-lg text-center shadow-xs">
                 <Calendar className="w-10 h-10 text-text-muted mb-3" />
-                <h3 className="font-semibold text-[14px] text-primary">No Consultations Found</h3>
+                <h3 className="font-semibold text-[14px] text-primary">{t("noConsultations", "appointments")}</h3>
                 <p className="text-[12px] text-text-secondary mt-1 max-w-sm leading-relaxed">
                   {userRole === "client"
-                    ? "You haven't scheduled any advisory consultations yet. Click the button above to request one with your lawyer."
-                    : "No consultation requests have been submitted by clients yet."}
+                    ? t("noConsultationsDescClient", "appointments")
+                    : t("noConsultationsDescLawyer", "appointments")}
                 </p>
                 {userRole === "client" && (
                   <button
                     onClick={() => setShowForm(true)}
-                    className="mt-4 px-4 py-2 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
+                    className="mt-4 px-4 py-2 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors cursor-pointer"
                   >
-                    Schedule Consultation
+                    {t("scheduleConsultation", "appointments")}
                   </button>
                 )}
               </div>
             ) : upcomingAppointments.length === 0 && pastAppointments.length === 0 ? (
               <div className="p-20 flex flex-col items-center justify-center bg-white border border-border rounded-lg text-center shadow-xs">
                 <Calendar className="w-8 h-8 text-text-muted mb-2" />
-                <h3 className="font-semibold text-xs text-primary">No Consultations Scheduled</h3>
+                <h3 className="font-semibold text-xs text-primary">{t("noConsultations", "appointments")}</h3>
                 <p className="text-[11px] text-text-secondary mt-1 max-w-xs leading-relaxed">
-                  There are no consultations scheduled for {selectedDateStr}. Click the "Clear Filter" button to see your entire history.
+                  {t("noConsultationsScheduledOnDate", "appointments")}
                 </p>
                 <button 
                   onClick={() => setSelectedDateStr("")}
-                  className="mt-3 px-3 py-1.5 bg-primary-100 hover:bg-primary-200 text-primary text-xs font-semibold rounded transition-colors"
+                  className="mt-3 px-3 py-1.5 bg-primary-100 hover:bg-primary-200 text-primary text-xs font-semibold rounded transition-colors cursor-pointer"
                 >
-                  Show All Dates
+                  {t("showAllDates", "appointments")}
                 </button>
               </div>
             ) : (
@@ -624,16 +634,28 @@ export default function AppointmentsPage() {
                   <div className="space-y-3">
                     <h3 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span>Upcoming Matched Consultations</span>
+                      <span>{t("upcomingTitle", "appointments")}</span>
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {upcomingAppointments.map((appt) => {
                         const isAccepted = appt.status === "accepted";
                         const isScheduled = appt.status === "scheduled";
+                        const isPaid = appt.payment_status === "paid";
+
                         const borderColor = isAccepted ? "border-l-blue-500" : "border-l-emerald-500";
                         const statusBg = isAccepted 
                           ? "bg-blue-50 text-blue-700 border-blue-100" 
                           : "bg-emerald-50 text-emerald-700 border-emerald-100";
+
+                        const statusText = isAccepted 
+                          ? t("accepted", "appointments") 
+                          : t("scheduled", "appointments");
+
+                        const paymentStatusText = isPaid
+                          ? t("paid", "appointments")
+                          : appt.payment_status === "failed"
+                            ? t("paymentFailed", "appointments")
+                            : t("paymentPending", "appointments");
 
                         return (
                         <div key={appt.id} className={`bg-white border border-border rounded-lg p-5 shadow-xs flex flex-col justify-between hover:shadow-sm transition-all border-l-4 ${borderColor} relative`}>
@@ -642,16 +664,16 @@ export default function AppointmentsPage() {
                               <h4 className="font-bold text-[13px] text-primary leading-tight">{appt.title}</h4>
                               <div className="flex flex-col items-end gap-1 shrink-0">
                                 <span className={`px-2 py-0.5 text-[9px] font-bold border rounded uppercase tracking-wider ${statusBg}`}>
-                                  {appt.status}
+                                  {statusText}
                                 </span>
                                 <span className={`px-2 py-0.5 text-[8px] font-bold border rounded uppercase tracking-wider ${
-                                  appt.payment_status === "paid" 
+                                  isPaid 
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
                                     : appt.payment_status === "failed" 
                                       ? "bg-risk-red-light text-risk-red border-risk-red/10" 
                                       : "bg-amber-50 text-amber-700 border-amber-100"
                                 }`}>
-                                  {appt.payment_status === "paid" ? "Paid" : appt.payment_status === "failed" ? "Payment Failed" : "Payment Pending"}
+                                  {paymentStatusText}
                                 </span>
                               </div>
                             </div>
@@ -675,9 +697,9 @@ export default function AppointmentsPage() {
                                 <User className="w-3.5 h-3.5 text-text-muted shrink-0" />
                                 <span>
                                   {userRole === "client" ? (
-                                    <>Counsel: <span className="font-medium text-primary">{appt.lawyer_name || "Assigned Counsel"}</span></>
+                                    <>{t("counselLabel", "appointments")}: <span className="font-medium text-primary">{appt.lawyer_name || "Assigned Counsel"}</span></>
                                   ) : (
-                                    <>Client: <span className="font-medium text-primary">{appt.client_name || "Client"}</span></>
+                                    <>{t("clientLabel", "appointments")}: <span className="font-medium text-primary">{appt.client_name || "Client"}</span></>
                                   )}
                                 </span>
                               </div>
@@ -685,80 +707,103 @@ export default function AppointmentsPage() {
                               {/* Phone Numbers Exchange */}
                               {userRole === "client" && appt.lawyer_phone && (
                                 <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-                                  <span className="font-semibold text-primary">Counsel Phone:</span>
+                                  <span className="font-semibold text-primary">{t("counselPhone", "appointments")}:</span>
                                   <a href={`tel:${appt.lawyer_phone}`} className="text-blue-600 hover:underline">{appt.lawyer_phone}</a>
                                 </div>
                               )}
                               {userRole === "lawyer" && appt.client_phone && (
                                 <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-                                  <span className="font-semibold text-primary">Client Phone:</span>
+                                  <span className="font-semibold text-primary">{t("clientPhone", "appointments")}:</span>
                                   <a href={`tel:${appt.client_phone}`} className="text-blue-600 hover:underline">{appt.client_phone}</a>
                                 </div>
                               )}
                               {userRole === "lawyer" && isAccepted && !appt.client_phone && (
                                 <div className="flex items-center gap-1.5 text-[11px] text-text-muted italic">
-                                  <span>Client opted not to share phone number</span>
+                                  <span>{t("noPhoneShared", "appointments")}</span>
                                 </div>
                               )}
 
                               {/* Chat status indicator */}
                               <div className="pt-1.5">
                                 <span className={`px-2 py-0.5 text-[9px] font-bold border rounded uppercase tracking-wider ${
-                                  isAccepted 
+                                  isAccepted && isPaid
                                     ? "bg-blue-50 text-blue-700 border-blue-100" 
                                     : "bg-amber-50 text-amber-700 border-amber-100"
                                 }`}>
-                                  {isAccepted ? "Chat unlocked" : "Chat locked until accepted"}
+                                  {isAccepted && isPaid 
+                                    ? t("chatUnlocked", "appointments") 
+                                    : isAccepted && !isPaid 
+                                      ? t("chatLockedPay", "appointments") 
+                                      : t("chatLocked", "appointments")}
                                 </span>
                               </div>
                             </div>
                           </div>
 
                           {/* Action panel — state-based buttons */}
-                          <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-end gap-2">
+                          <div className="mt-4 pt-3 border-t border-border/40 flex flex-wrap items-center justify-end gap-2">
                             
-                            {/* ACCEPTED state: Show meeting link + Complete button */}
+                            {/* ACCEPTED state: Show payment button first if unpaid, or Virtual Meeting if paid */}
                             {isAccepted && (
                               <>
+                                {/* CLIENT UPFRONT PAYMENT BUTTON FIRST */}
+                                {userRole === "client" && !isPaid && (
+                                  <button
+                                    onClick={() => handlePayment(appt)}
+                                    disabled={payingId === appt.id}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs cursor-pointer"
+                                  >
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    <span>{payingId === appt.id ? t("processing", "common") : `${t("payConsultationFee", "appointments")} (₹${appt.consultation_fee || 500})`}</span>
+                                  </button>
+                                )}
 
-                                <a 
-                                  href={appt.meeting_link || `https://meet.jit.si/lexicon-meeting-${appt.id}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 border border-blue-700 rounded text-[11px] text-white font-semibold transition-colors shadow-xs"
-                                >
-                                  <Video className="w-3 h-3" />
-                                  <span>Virtual Meeting</span>
-                                </a>
+                                {/* VIRTUAL MEETING BUTTON LINK (Unlocked when paid or for lawyer) */}
+                                {(isPaid || userRole === "lawyer") ? (
+                                  <a 
+                                    href={appt.meeting_link || `https://meet.jit.si/lexicon-meeting-${appt.id}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 border border-blue-700 rounded text-[11px] text-white font-semibold transition-colors shadow-xs"
+                                  >
+                                    <Video className="w-3 h-3" />
+                                    <span>{t("virtualMeeting", "appointments")}</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-[11px] text-amber-600 font-semibold italic flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{t("payToUnlockMeeting", "appointments")}</span>
+                                  </span>
+                                )}
 
                                 {userRole === "lawyer" && (
                                   <button
                                     onClick={() => handleStatusUpdate(appt.id, "completed")}
-                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs"
+                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs cursor-pointer"
                                   >
                                     <CheckCircle2 className="w-3 h-3" />
-                                    <span>Complete</span>
+                                    <span>{t("complete", "appointments")}</span>
                                   </button>
                                 )}
                               </>
                             )}
 
-                            {/* SCHEDULED state (Lawyer): Accept + Cancel */}
+                            {/* SCHEDULED state (Lawyer): Accept + Decline */}
                             {isScheduled && userRole === "lawyer" && (
                               <>
                                 <button
                                   onClick={() => handleStatusUpdate(appt.id, "accepted")}
-                                  className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primary-light text-white rounded text-[11px] font-semibold transition-colors shadow-xs"
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primary-light text-white rounded text-[11px] font-semibold transition-colors shadow-xs cursor-pointer"
                                 >
                                   <CheckCircle2 className="w-3 h-3" />
-                                  <span>Accept</span>
+                                  <span>{t("accept", "appointments")}</span>
                                 </button>
                                 <button
                                   onClick={() => handleStatusUpdate(appt.id, "cancelled")}
-                                  className="flex items-center gap-1 px-2.5 py-1.5 border border-border text-text-secondary hover:text-risk-red hover:bg-risk-red-light/20 rounded text-[11px] font-semibold transition-colors"
+                                  className="flex items-center gap-1 px-2.5 py-1.5 border border-border text-text-secondary hover:text-risk-red hover:bg-risk-red-light/20 rounded text-[11px] font-semibold transition-colors cursor-pointer"
                                 >
                                   <XCircle className="w-3 h-3" />
-                                  <span>Decline</span>
+                                  <span>{t("decline", "appointments")}</span>
                                 </button>
                               </>
                             )}
@@ -766,14 +811,14 @@ export default function AppointmentsPage() {
                             {/* SCHEDULED state (Client): just Cancel */}
                             {isScheduled && userRole === "client" && (
                               <>
-                                <span className="text-[10px] text-amber-600 font-medium italic">Awaiting counsel's acceptance</span>
+                                <span className="text-[10px] text-amber-600 font-medium italic">{t("awaitingAcceptance", "appointments")}</span>
 
                                 <button
                                   onClick={() => handleStatusUpdate(appt.id, "cancelled")}
-                                  className="flex items-center gap-1 px-2.5 py-1.5 border border-border text-text-secondary hover:text-risk-red hover:bg-risk-red-light/20 rounded text-[11px] font-semibold transition-colors"
+                                  className="flex items-center gap-1 px-2.5 py-1.5 border border-border text-text-secondary hover:text-risk-red hover:bg-risk-red-light/20 rounded text-[11px] font-semibold transition-colors cursor-pointer"
                                 >
                                   <XCircle className="w-3 h-3" />
-                                  <span>Cancel</span>
+                                  <span>{t("cancel", "common")}</span>
                                 </button>
                               </>
                             )}
@@ -785,20 +830,28 @@ export default function AppointmentsPage() {
                   </div>
                 )}
 
-                {/* PAST / OTHER APPOINTMENTS */}
+                {/* PAST / HISTORICAL APPOINTMENTS */}
                 {pastAppointments.length > 0 && (
                   <div className="space-y-3 pt-3">
-                    <h3 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">Historical Advisory Log</h3>
+                    <h3 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">{t("historyTitle", "appointments")}</h3>
                     <div className="bg-white border border-border rounded-lg overflow-hidden shadow-xs">
                       <div className="divide-y divide-border">
                         {pastAppointments.map((appt) => {
                           const isCompleted = appt.status === "completed";
                           const isCancelled = appt.status === "cancelled";
+                          const isPaid = appt.payment_status === "paid";
+
                           const statusStyle = isCompleted
                             ? "bg-emerald-100 text-emerald-700 border-emerald-200"
                             : isCancelled
                               ? "bg-risk-red-light text-risk-red border-risk-red/10"
                               : "bg-slate-50 text-text-secondary border-border";
+
+                          const statusText = isCompleted
+                            ? t("completedStatus", "appointments")
+                            : isCancelled
+                              ? t("cancelledStatus", "appointments")
+                              : appt.status;
 
                           return (
                             <div key={appt.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors">
@@ -806,14 +859,14 @@ export default function AppointmentsPage() {
                                 <div className="flex items-center gap-2">
                                   <h4 className="font-semibold text-[13px] text-primary truncate">{appt.title}</h4>
                                   <span className={`px-2 py-0.5 text-[8px] font-bold rounded border uppercase tracking-wider shrink-0 ${statusStyle}`}>
-                                    {appt.status}
+                                    {statusText}
                                   </span>
                                   <span className={`px-2 py-0.5 text-[8px] font-bold rounded border uppercase tracking-wider shrink-0 ${
-                                    appt.payment_status === "paid"
+                                    isPaid
                                       ? "bg-emerald-100 text-emerald-700 border-emerald-200"
                                       : "bg-amber-50 text-amber-700 border-amber-100"
                                   }`}>
-                                    {appt.payment_status === "paid" ? "Paid" : "Unpaid"}
+                                    {isPaid ? t("paid", "appointments") : t("unpaid", "appointments")}
                                   </span>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-text-secondary">
@@ -836,16 +889,16 @@ export default function AppointmentsPage() {
                                   </p>
                                 )}
                               </div>
-                              {/* Payment Button for completed unpaid consultations */}
-                              {isCompleted && userRole === "client" && appt.payment_status !== "paid" && (
+                              {/* Payment Button for completed unpaid consultations fallback */}
+                              {isCompleted && userRole === "client" && !isPaid && (
                                 <div className="shrink-0 self-start md:self-center">
                                   <button
                                     onClick={() => handlePayment(appt)}
                                     disabled={payingId === appt.id}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs cursor-pointer"
                                   >
                                     <CreditCard className="w-3.5 h-3.5" />
-                                    <span>{payingId === appt.id ? "Processing..." : `Pay Fee (₹${appt.consultation_fee || 500})`}</span>
+                                    <span>{payingId === appt.id ? t("processing", "common") : `${t("payConsultationFee", "appointments")} (₹${appt.consultation_fee || 500})`}</span>
                                   </button>
                                 </div>
                               )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Shell from "@/components/layout/Shell";
+import { useTranslation } from "@/lib/LanguageContext";
 import { getPortfolioAnalytics, listAnalyses } from "@/lib/api";
 import {
   ResponsiveContainer,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 
 export default function AnalyticsPage() {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [analyses, setAnalyses] = useState([]);
@@ -85,9 +87,9 @@ export default function AnalyticsPage() {
         {/* Header Title */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
-            <h1 className="text-2xl font-bold tracking-tight text-primary">Portfolio Risk Analytics</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-primary">{t("title", "analytics")}</h1>
             <p className="text-[13px] text-text-secondary">
-              Bird's-eye view of active legal liabilities and risk distributions across your document library.
+              {t("subtitle", "analytics")}
             </p>
           </div>
           <button
