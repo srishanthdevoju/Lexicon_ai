@@ -105,6 +105,14 @@ class LLMClient:
                 last_error = e
                 err_msg = str(e).lower()
                 is_rate_limit = "429" in err_msg or "rate limit" in err_msg or "rate_limit" in err_msg
+                is_model_not_found = "model_not_found" in err_msg or "does not exist" in err_msg or "404" in err_msg
+
+                if is_model_not_found and self.model != "openai/gpt-oss-120b":
+                    logger.warning(
+                        f"Model '{self.model}' not found on endpoint. Falling back to 'openai/gpt-oss-120b'..."
+                    )
+                    self.model = "openai/gpt-oss-120b"
+                    continue
 
                 if is_rate_limit and len(api_keys) > 1:
                     logger.warning(
