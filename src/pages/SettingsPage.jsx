@@ -3,6 +3,7 @@ import Shell from "@/components/layout/Shell";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { updateProfilePhone, updateLawyerSlots } from "@/lib/api";
+import { useTranslation } from "@/lib/LanguageContext";
 import { 
   User, 
   ShieldCheck, 
@@ -20,12 +21,13 @@ import {
 
 export default function SettingsPage() {
   const { user, userRole } = useAuth();
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [profile, setProfile] = useState({
     name: user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User",
-    role: userRole === "client" ? "Client" : "Legal Counsel",
-    firm: "Lexicon AI Workspace",
+    role: userRole === "client" ? t("clientRole", "settings") : t("counselRole", "settings"),
+    firm: t("firmPlaceholder", "settings"),
     email: user?.email || "user@example.com",
     phone: ""
   });
@@ -51,7 +53,7 @@ export default function SettingsPage() {
             ...p,
             phone: profData.phone || "",
             name: profData.name || p.name,
-            role: profData.role === "client" ? "Client" : "Legal Counsel"
+            role: profData.role === "client" ? t("clientRole", "settings") : t("counselRole", "settings")
           }));
         }
       } catch (e) {
@@ -98,11 +100,11 @@ export default function SettingsPage() {
         await updateLawyerSlots(availableSlots.join(","));
       }
       
-      setSuccess("Configuration settings saved successfully.");
+      setSuccess(t("successSaved", "settings"));
       setTimeout(() => setSuccess(""), 4000);
     } catch (err) {
       console.error(err);
-      setError("Failed to save settings. Please verify database connection.");
+      setError(t("errorSaved", "settings"));
       setTimeout(() => setError(""), 4000);
     } finally {
       setSaving(false);
@@ -115,9 +117,9 @@ export default function SettingsPage() {
         
         {/* Title */}
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-primary">System Settings</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-primary">{t("title", "settings")}</h1>
           <p className="text-[13px] text-text-secondary">
-            Manage your legal workspace credentials, contact slots, and developer access keys.
+            {t("subtitle", "settings")}
           </p>
         </div>
 
@@ -142,12 +144,12 @@ export default function SettingsPage() {
           <div className="bg-white border border-border rounded shadow-sm overflow-hidden">
             <div className="p-5 border-b border-border flex items-center gap-2 bg-primary-50/30">
               <User className="w-4 h-4 text-primary" />
-              <h3 className="font-semibold text-[14px] text-primary">User Profile</h3>
+              <h3 className="font-semibold text-[14px] text-primary">{t("userProfile", "settings")}</h3>
             </div>
             
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-[12px]">
               <div className="space-y-1.5">
-                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">Full Name</label>
+                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">{t("fullName", "settings")}</label>
                 <input
                   type="text"
                   value={profile.name}
@@ -157,7 +159,7 @@ export default function SettingsPage() {
               </div>
               
               <div className="space-y-1.5">
-                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">Position</label>
+                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">{t("position", "settings")}</label>
                 <input
                   type="text"
                   value={profile.role}
@@ -167,7 +169,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">Organization</label>
+                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">{t("organization", "settings")}</label>
                 <input
                   type="text"
                   value={profile.firm}
@@ -177,7 +179,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">Email Address</label>
+                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">{t("emailAddress", "settings")}</label>
                 <input
                   type="email"
                   value={profile.email}
@@ -187,7 +189,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">Phone Number</label>
+                <label className="font-bold text-text-secondary uppercase text-[10px] tracking-wider">{t("phoneNumber", "settings")}</label>
                 <input
                   type="tel"
                   placeholder="e.g. +1 (555) 019-2834"
@@ -204,12 +206,12 @@ export default function SettingsPage() {
             <div className="bg-white border border-border rounded shadow-sm overflow-hidden animate-in fade-in duration-200">
               <div className="p-5 border-b border-border flex items-center gap-2 bg-primary-50/30">
                 <Clock className="w-4 h-4 text-primary" />
-                <h3 className="font-semibold text-[14px] text-primary">Predefined Available Consultation Booking Time Slots</h3>
+                <h3 className="font-semibold text-[14px] text-primary">{t("timeSlotsTitle", "settings")}</h3>
               </div>
               
               <div className="p-6 space-y-4 text-[12px]">
                 <p className="text-text-secondary text-[11px] leading-relaxed">
-                  Define your standard available slots. Clients booking consultations with you will be forced to select one of these times.
+                  {t("timeSlotsSubtitle", "settings")}
                 </p>
                 
                 <div className="flex flex-wrap gap-2 pt-2">
@@ -229,7 +231,7 @@ export default function SettingsPage() {
                     </span>
                   ))}
                   {availableSlots.length === 0 && (
-                    <span className="text-[11px] text-text-muted italic">No availability slots defined. Clients won't be able to book sessions with you.</span>
+                    <span className="text-[11px] text-text-muted italic">{t("noSlots", "settings")}</span>
                   )}
                 </div>
                 
@@ -250,7 +252,7 @@ export default function SettingsPage() {
                     }}
                     className="px-4 py-2 bg-primary text-white font-medium rounded text-[12px] hover:bg-primary-light transition-colors shadow-xs"
                   >
-                    Add Slot
+                    {t("addSlotBtn", "settings")}
                   </button>
                 </div>
               </div>
@@ -261,25 +263,25 @@ export default function SettingsPage() {
           <div className="bg-white border border-border rounded shadow-sm overflow-hidden">
             <div className="p-5 border-b border-border flex items-center gap-2 bg-primary-50/30">
               <ShieldCheck className="w-4 h-4 text-primary" />
-              <h3 className="font-semibold text-[14px] text-primary">Security Settings</h3>
+              <h3 className="font-semibold text-[14px] text-primary">{t("securitySettings", "settings")}</h3>
             </div>
             
             <div className="p-6 space-y-4 text-[12px]">
               <div className="flex items-center justify-between border-b border-border/60 pb-4">
                 <div className="space-y-0.5">
-                  <h4 className="font-semibold text-[13px] text-primary">Authentication Provider</h4>
+                  <h4 className="font-semibold text-[13px] text-primary">{t("authProvider", "settings")}</h4>
                   <p className="text-text-secondary text-[11px]">
-                    {user?.app_metadata?.provider === "google" ? "Signed in via Google OAuth" : "Signed in via Email/Password"}
+                    {user?.app_metadata?.provider === "google" ? t("googleAuth", "settings") : t("emailAuth", "settings")}
                   </p>
                 </div>
                 <span className="px-2 py-0.5 bg-risk-green-light text-risk-green text-[10px] font-bold border border-risk-green/10 rounded uppercase tracking-wider">
-                  Verified
+                  {t("verified", "settings")}
                 </span>
               </div>
 
               <div className="flex items-center justify-between pt-2">
                 <div className="space-y-0.5">
-                  <h4 className="font-semibold text-[13px] text-primary">User ID</h4>
+                  <h4 className="font-semibold text-[13px] text-primary">{t("userId", "settings")}</h4>
                   <p className="text-text-secondary text-[11px] font-mono">{user?.id || "N/A"}</p>
                 </div>
               </div>
@@ -290,18 +292,18 @@ export default function SettingsPage() {
           <div className="bg-white border border-border rounded shadow-sm overflow-hidden">
             <div className="p-5 border-b border-border flex items-center gap-2 bg-primary-50/30">
               <Key className="w-4 h-4 text-primary" />
-              <h3 className="font-semibold text-[14px] text-primary">Developer API Integration</h3>
+              <h3 className="font-semibold text-[14px] text-primary">{t("devIntegration", "settings")}</h3>
             </div>
             
             <div className="p-6 space-y-4 text-[12px]">
               <div className="space-y-2">
-                <h4 className="font-semibold text-[13px] text-primary">API Access Token</h4>
+                <h4 className="font-semibold text-[13px] text-primary">{t("accessTokenTitle", "settings")}</h4>
                 <p className="text-text-secondary text-[11px] leading-relaxed mb-2">
-                  Use this token to query Lexicon AI contract extraction endpoints programmatically.
+                  {t("accessTokenSubtitle", "settings")}
                 </p>
                 
                 <div className="p-3.5 bg-blue-50/80 border border-blue-100/50 rounded text-[11.5px] text-blue-900 leading-relaxed max-w-2xl mb-4">
-                  <strong>ℹ️ Security Clearance:</strong> This API token is a client-side utility key generated directly from your credentials. It does not represent any external exploit or security threat to your workspace.
+                  {t("securityClearance", "settings")}
                 </div>
                 
                 <div className="flex items-center gap-2 pt-2">
@@ -342,7 +344,7 @@ export default function SettingsPage() {
               className="px-5 py-2.5 bg-primary text-white text-[13px] font-semibold rounded hover:bg-primary-light transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              <span>{saving ? "Saving Settings..." : "Save System Settings"}</span>
+              <span>{saving ? t("savingBtn", "settings") : t("saveBtn", "settings")}</span>
             </button>
           </div>
 

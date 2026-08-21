@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
+import { useTranslation } from "@/lib/LanguageContext";
 import { listAllNotes, updateNote, deleteNote, createGeneralNote } from "@/lib/api";
 import { 
   Search, 
@@ -19,6 +20,7 @@ import {
 
 export default function NotesPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -38,14 +40,14 @@ export default function NotesPage() {
     setSuccessMsg("");
     try {
       await createGeneralNote(newNoteContent);
-      setSuccessMsg("General note created successfully.");
+      setSuccessMsg(t("successCreated", "notes"));
       setNewNoteContent("");
       setShowAddModal(false);
       fetchNotes();
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
       console.error("Failed to create note:", err);
-      setErrorMsg("Failed to create general note.");
+      setErrorMsg(t("errorCreated", "notes"));
       setTimeout(() => setErrorMsg(""), 3000);
     } finally {
       setCreatingNote(false);
@@ -59,7 +61,7 @@ export default function NotesPage() {
       setNotes(data || []);
     } catch (err) {
       console.error("Failed to load notes:", err);
-      setErrorMsg("Failed to load notes. Please verify your database connection.");
+      setErrorMsg(t("errorLoading", "notes"));
     } finally {
       setLoading(false);
     }
@@ -83,27 +85,27 @@ export default function NotesPage() {
     if (!editContent.trim()) return;
     try {
       await updateNote(noteId, editContent);
-      setSuccessMsg("Note updated successfully.");
+      setSuccessMsg(t("successUpdated", "notes"));
       setEditingNoteId(null);
       fetchNotes();
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
       console.error("Failed to update note:", err);
-      setErrorMsg("Failed to update note.");
+      setErrorMsg(t("errorUpdated", "notes"));
       setTimeout(() => setErrorMsg(""), 3000);
     }
   };
 
   const handleDelete = async (noteId) => {
-    if (!window.confirm("Are you sure you want to delete this note?")) return;
+    if (!window.confirm(t("confirmDelete", "notes"))) return;
     try {
       await deleteNote(noteId);
-      setSuccessMsg("Note deleted successfully.");
+      setSuccessMsg(t("successDeleted", "notes"));
       fetchNotes();
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
       console.error("Failed to delete note:", err);
-      setErrorMsg("Failed to delete note.");
+      setErrorMsg(t("errorDeleted", "notes"));
       setTimeout(() => setErrorMsg(""), 3000);
     }
   };
@@ -111,13 +113,13 @@ export default function NotesPage() {
   // Filter notes by search query
   const filteredNotes = notes.filter(note => {
     const contentMatch = note.content.toLowerCase().includes(searchQuery.toLowerCase());
-    const docName = note.document_id ? (note.analyses?.filename || "Untitled PDF") : "General Legal Note";
+    const docName = note.document_id ? (note.analyses?.filename || t("untitledDoc", "library")) : t("addGeneralNote", "notes");
     const docMatch = docName.toLowerCase().includes(searchQuery.toLowerCase());
     return contentMatch || docMatch;
   });
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return "Unknown date";
+    if (!dateStr) return t("unknown", "library");
     return new Date(dateStr).toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',
@@ -133,9 +135,9 @@ export default function NotesPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-primary">Central Legal Notes</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-primary">{t("title", "notes")}</h1>
             <p className="text-[13px] text-text-secondary">
-              Review and manage your notes across all contract analyses.
+              {t("subtitle", "notes")}
             </p>
           </div>
           <button
@@ -143,7 +145,7 @@ export default function NotesPage() {
             className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-[13px] font-semibold rounded hover:bg-primary-light transition-colors shadow-xs shrink-0 self-start md:self-center"
           >
             <Plus className="w-4 h-4" />
-            <span>Add General Note</span>
+            <span>{t("addNote", "notes")}</span>
           </button>
         </div>
 
@@ -167,7 +169,7 @@ export default function NotesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
             <input
               type="text"
-              placeholder="Search notes by content or document name..."
+              placeholder={t("searchPlaceholder", "notes")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-border rounded text-[13px] bg-background focus:outline-none focus:border-primary transition-colors"
@@ -179,20 +181,20 @@ export default function NotesPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center p-12 gap-3 bg-white border border-border rounded">
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
-            <span className="text-[13px] text-text-secondary font-medium">Fetching notes...</span>
+            <span className="text-[13px] text-text-secondary font-medium">{t("fetchingNotes", "notes")}</span>
           </div>
         ) : filteredNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-center bg-white border border-border rounded">
             <FileText className="w-10 h-10 text-text-muted mb-3" />
-            <h3 className="font-semibold text-primary mb-1">No Notes Found</h3>
+            <h3 className="font-semibold text-primary mb-1">{t("noNotesFound", "notes")}</h3>
             <p className="text-[13px] text-text-secondary max-w-sm">
-              {searchQuery ? "No notes matched your search criteria." : "Create notes inline while reviewing documents in the Analysis tab."}
+              {searchQuery ? t("noNotesMatch", "notes") : t("createNotesInline", "notes")}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredNotes.map((note) => {
-              const docName = note.document_id ? (note.analyses?.filename || "Untitled Document") : "General Legal Note";
+              const docName = note.document_id ? (note.analyses?.filename || t("untitledDoc", "library")) : t("addGeneralNote", "notes");
               const isEditing = editingNoteId === note.id;
 
               return (
@@ -213,7 +215,7 @@ export default function NotesPage() {
                         onClick={() => navigate(`/analysis/${note.document_id}`)}
                         className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-light transition-colors shrink-0 pl-2"
                       >
-                        <span>Analyze</span>
+                        <span>{t("analyze", "notes")}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -223,25 +225,25 @@ export default function NotesPage() {
                   <div className="p-5 flex-1">
                     {isEditing ? (
                       <div className="space-y-3">
-                        <textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          rows={4}
-                          className="w-full p-3 border border-border rounded text-[13px] bg-background focus:outline-none focus:border-primary resize-none"
-                        />
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        rows={4}
+                        className="w-full p-3 border border-border rounded text-[13px] bg-background focus:outline-none focus:border-primary resize-none"
+                      />
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={handleEditCancel}
                             className="px-2.5 py-1.5 border border-border rounded text-[11px] text-text-secondary hover:text-primary transition-colors flex items-center gap-1"
                           >
                             <X className="w-3 h-3" />
-                            <span>Cancel</span>
+                            <span>{t("cancel", "notes")}</span>
                           </button>
                           <button
                             onClick={() => handleEditSave(note.id)}
                             className="px-2.5 py-1.5 bg-primary text-white rounded text-[11px] font-semibold hover:bg-primary-light transition-colors flex items-center gap-1"
                           >
-                            <span>Save Changes</span>
+                            <span>{t("saveChanges", "notes")}</span>
                           </button>
                         </div>
                       </div>
@@ -266,14 +268,14 @@ export default function NotesPage() {
                           className="hover:text-primary transition-colors flex items-center gap-1 font-medium"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
-                          <span>Edit</span>
+                          <span>{t("edit", "notes")}</span>
                         </button>
                         <button
                           onClick={() => handleDelete(note.id)}
                           className="hover:text-risk-red transition-colors flex items-center gap-1 font-medium"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>Delete</span>
+                          <span>{t("delete", "notes")}</span>
                         </button>
                       </div>
                     )}
@@ -289,7 +291,7 @@ export default function NotesPage() {
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white border border-border rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4 animate-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="font-bold text-[15px] text-primary">Add General Legal Note</h3>
+                <h3 className="font-bold text-[15px] text-primary">{t("addGeneralNote", "notes")}</h3>
                 <button 
                   onClick={() => {
                     setShowAddModal(false);
@@ -303,10 +305,10 @@ export default function NotesPage() {
 
               <form onSubmit={handleCreateNote} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-text-secondary uppercase">Note Content</label>
+                  <label className="text-[10px] font-bold text-text-secondary uppercase">{t("noteContent", "notes")}</label>
                   <textarea
                     required
-                    placeholder="Write your general legal note here..."
+                    placeholder={t("placeholderContent", "notes")}
                     value={newNoteContent}
                     onChange={(e) => setNewNoteContent(e.target.value)}
                     rows={6}
@@ -324,7 +326,7 @@ export default function NotesPage() {
                     className="px-3 py-2 border border-border rounded text-[11px] font-semibold text-text-secondary hover:text-primary transition-colors flex items-center gap-1"
                   >
                     <X className="w-3.5 h-3.5" />
-                    <span>Cancel</span>
+                    <span>{t("cancel", "notes")}</span>
                   </button>
                   <button
                     type="submit"
@@ -334,12 +336,12 @@ export default function NotesPage() {
                     {creatingNote ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Creating...</span>
+                        <span>{t("creatingBtn", "notes")}</span>
                       </>
                     ) : (
                       <>
                         <FileEdit className="w-3.5 h-3.5" />
-                        <span>Create Note</span>
+                        <span>{t("createNoteBtn", "notes")}</span>
                       </>
                     )}
                   </button>

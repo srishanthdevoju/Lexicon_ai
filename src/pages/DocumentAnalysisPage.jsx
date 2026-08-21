@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { useTranslation } from "@/lib/LanguageContext";
 import { 
   getAnalysis, 
   getAnalysisText, 
@@ -208,6 +209,7 @@ export default function DocumentAnalysisPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, userRole } = useAuth();
+  const { lang, t } = useTranslation();
   
   // Split Screen Adjustable Width state
   const [leftWidth, setLeftWidth] = useState(50); // percentage
@@ -336,7 +338,7 @@ export default function DocumentAnalysisPage() {
           console.error("Failed to post to doc discussion thread:", e);
         }
         
-        setShareChatSuccess("Successfully sent report and analysis to your lawyer via chat!");
+        setShareChatSuccess(t("successSentLawyer", "analysis"));
         setTimeout(() => setShowShareChatModal(false), 3000);
       } else {
         // No upcoming appointment found. Must book first.
@@ -347,7 +349,7 @@ export default function DocumentAnalysisPage() {
       }
     } catch (err) {
       console.error("Failed to share with lawyer:", err);
-      setShareChatError("Failed to verify appointment status. Please try again.");
+      setShareChatError(t("errorLoad", "appointments"));
     } finally {
       setSharingToChat(false);
     }
@@ -392,14 +394,14 @@ export default function DocumentAnalysisPage() {
         console.error("Failed to post to doc discussion thread:", e);
       }
       
-      setShareChatSuccess("Consultation booked and analysis successfully shared with your lawyer!");
+      setShareChatSuccess(t("successBookShared", "analysis"));
       setTimeout(() => {
         setShowShareChatModal(false);
         setNeedsBooking(false);
       }, 3000);
     } catch (err) {
       console.error("Failed to book and share:", err);
-      setShareChatError("Failed to book consultation and share. Please try again.");
+      setShareChatError(t("errorUpdate", "appointments"));
     } finally {
       setSharingToChat(false);
     }
@@ -525,7 +527,7 @@ export default function DocumentAnalysisPage() {
 
   // Handle Note Deletion
   const handleDeleteNote = async (noteId) => {
-    if (!window.confirm("Delete this note?")) return;
+    if (!window.confirm(t("deleteNoteConfirm", "analysis"))) return;
     try {
       await deleteNote(noteId);
       fetchSharedNotes();
@@ -543,7 +545,7 @@ export default function DocumentAnalysisPage() {
     setShareError("");
     try {
       await shareDocument(activeId, shareEmail);
-      setShareSuccess(`Document shared with ${shareEmail}!`);
+      setShareSuccess(`${t("successShared", "analysis")} (${shareEmail})`);
       setShareEmail("");
       setTimeout(() => setShowShareModal(false), 2000);
     } catch (err) {
@@ -561,7 +563,7 @@ export default function DocumentAnalysisPage() {
     setEmailSuccess("");
     try {
       await shareAnalysisByEmail(activeId, emailRecipient);
-      setEmailSuccess(`Analysis brief exported successfully to ${emailRecipient}!`);
+      setEmailSuccess(`${t("successExported", "analysis")} (${emailRecipient})`);
       setTimeout(() => {
         setShowEmailModal(false);
         setEmailSuccess("");
@@ -579,7 +581,7 @@ export default function DocumentAnalysisPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setUploadError("Only PDF documents are accepted.");
+      setUploadError(t("onlyPdfAccepted", "analysis"));
       return;
     }
     setUploadingRelated(true);
@@ -619,10 +621,10 @@ export default function DocumentAnalysisPage() {
 
       // Re-trigger load for linked list update
       fetchDocDetails(activeId);
-      alert(`${file.name} uploaded and linked successfully to this contract group!`);
+      alert(`${file.name} ${t("linkPdfSuccess", "analysis")}`);
     } catch (err) {
       console.error("Related upload failed:", err);
-      setUploadError("Upload failed. Verify backend services are active.");
+      setUploadError(t("relatedUploadFailed", "analysis"));
     } finally {
       setUploadingRelated(false);
     }
@@ -728,10 +730,10 @@ export default function DocumentAnalysisPage() {
       await sendMessage(activeId, confirmationMsg, userRole, displayName);
       
       fetchChatMessages();
-      alert("Appointment accepted and logged in calendar!");
+      alert(t("successAccepted", "appointments"));
     } catch (err) {
       console.error("Failed to accept appointment:", err);
-      alert("Error logging appointment.");
+      alert(t("errorUpdate", "appointments"));
     }
   };
 
@@ -752,13 +754,13 @@ export default function DocumentAnalysisPage() {
           <div className="flex items-start gap-2.5">
             <Calendar className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
             <div>
-              <h5 className="font-bold text-purple-950">Consultation Meeting Request</h5>
+              <h5 className="font-bold text-purple-950">{t("meetingRequestTitle", "analysis")}</h5>
               <p className="text-[11px] text-text-secondary mt-0.5">{title}</p>
             </div>
           </div>
           <div className="flex flex-col gap-1 text-[11px] bg-white p-2 border border-purple-100 rounded text-text-secondary">
-            <p><span className="font-semibold text-purple-900">Date:</span> {date}</p>
-            <p><span className="font-semibold text-purple-900">Time:</span> {time}</p>
+            <p><span className="font-semibold text-purple-900">{t("dateLabel", "analysis")}</span> {date}</p>
+            <p><span className="font-semibold text-purple-900">{t("timeLabel", "analysis")}</span> {time}</p>
           </div>
           {userRole === "lawyer" ? (
             <div className="flex items-center gap-2 justify-end">
@@ -766,11 +768,11 @@ export default function DocumentAnalysisPage() {
                 onClick={() => handleAcceptAppointment(msg.content, msg.sender_id)}
                 className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-bold shadow-xs transition-colors"
               >
-                Accept
+                {t("acceptBtn", "analysis")}
               </button>
             </div>
           ) : (
-            <div className="text-[10px] italic text-purple-700/80">Pending Counsel's approval...</div>
+            <div className="text-[10px] italic text-purple-700/80">{t("pendingApproval", "analysis")}</div>
           )}
         </div>
       );
@@ -788,13 +790,13 @@ export default function DocumentAnalysisPage() {
           <div className="flex items-start gap-2.5">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <h5 className="font-bold text-emerald-950">Consultation Scheduled</h5>
+              <h5 className="font-bold text-emerald-950">{t("confirmedTitle", "analysis")}</h5>
               <p className="text-[11px] text-emerald-900 mt-0.5">{title}</p>
             </div>
           </div>
           <div className="flex flex-col gap-1 text-[11px] bg-white p-2 border border-emerald-100 rounded text-text-secondary">
-            <p><span className="font-semibold text-emerald-800">Date:</span> {date}</p>
-            <p><span className="font-semibold text-emerald-800">Time:</span> {time}</p>
+            <p><span className="font-semibold text-emerald-800">{t("dateLabel", "analysis")}</span> {date}</p>
+            <p><span className="font-semibold text-emerald-800">{t("timeLabel", "analysis")}</span> {time}</p>
           </div>
           <a
             href="https://meet.google.com/new"
@@ -803,7 +805,7 @@ export default function DocumentAnalysisPage() {
             className="w-full flex items-center justify-center gap-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow-xs transition-colors text-center"
           >
             <Video className="w-3.5 h-3.5" />
-            <span>Join Meeting Room</span>
+            <span>{t("joinMeeting", "analysis")}</span>
           </a>
         </div>
       );
@@ -819,7 +821,7 @@ export default function DocumentAnalysisPage() {
         <div className="flex items-center justify-center py-32 bg-background">
           <div className="flex flex-col items-center gap-3">
             <RefreshCw className="w-6 h-6 text-primary animate-spin" />
-            <span className="text-[13px] text-text-secondary">Analyzing workspace contract...</span>
+            <span className="text-[13px] text-text-secondary">{t("activeDocLoading", "common")}</span>
           </div>
         </div>
       </Shell>
@@ -844,7 +846,7 @@ export default function DocumentAnalysisPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-border hover:bg-slate-50 rounded text-[11px] font-semibold text-text-secondary hover:text-primary transition-colors shadow-xs"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download Report</span>
+              <span>{t("downloadReport", "analysis")}</span>
             </button>
 
             <button 
@@ -852,7 +854,7 @@ export default function DocumentAnalysisPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-border hover:bg-slate-50 rounded text-[11px] font-semibold text-text-secondary hover:text-primary transition-colors shadow-xs"
             >
               <Mail className="w-3.5 h-3.5 text-purple-600" />
-              <span>Email Analysis Brief</span>
+              <span>{t("emailBrief", "analysis")}</span>
             </button>
 
             {userRole === "client" && (
@@ -861,7 +863,7 @@ export default function DocumentAnalysisPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-border hover:bg-slate-50 rounded text-[11px] font-semibold text-text-secondary hover:text-primary transition-colors shadow-xs"
               >
                 <Send className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Send to Lawyer</span>
+                <span>{t("sendToLawyer", "analysis")}</span>
               </button>
             )}
             
@@ -871,7 +873,7 @@ export default function DocumentAnalysisPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-light rounded text-[11px] font-semibold text-white transition-colors shadow-xs"
               >
                 <Share2 className="w-3.5 h-3.5" />
-                <span>Share with Client</span>
+                <span>{t("shareWithClient", "analysis")}</span>
               </button>
             )}
           </div>
@@ -879,7 +881,7 @@ export default function DocumentAnalysisPage() {
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5 text-[10px] text-risk-blue font-bold uppercase tracking-wider bg-primary-100/50 px-2 py-1 rounded">
               <span className="w-1.5 h-1.5 rounded-full bg-risk-green"></span>
-              <span>Workspace Sync Active</span>
+              <span>{t("syncActive", "analysis")}</span>
             </span>
           </div>
         </div>
@@ -899,7 +901,7 @@ export default function DocumentAnalysisPage() {
               <div className="flex items-center gap-2 min-w-0">
                 <FileText className="w-4 h-4 text-primary shrink-0" />
                 <span className="text-[12px] font-bold text-primary truncate uppercase tracking-tight">
-                  {metadata?.document_type || "Legal Contract"}
+                  {metadata?.document_type || t("legalContract", "common")}
                 </span>
               </div>
               
@@ -922,7 +924,7 @@ export default function DocumentAnalysisPage() {
                   ) : (
                     <Plus className="w-3 h-3 text-primary" />
                   )}
-                  <span>{uploadingRelated ? "Uploading..." : "Link PDF"}</span>
+                  <span>{uploadingRelated ? t("linking", "analysis") : t("linkPdf", "analysis")}</span>
                 </label>
               </div>
             </div>
@@ -930,7 +932,7 @@ export default function DocumentAnalysisPage() {
             {/* Linked Documents Batch strip */}
             {metadata?.linked_docs && metadata.linked_docs.length > 0 && (
               <div className="px-4 py-2.5 bg-slate-100/70 border-b border-border/60 flex items-center gap-2 overflow-x-auto shrink-0 select-none">
-                <span className="text-[9px] font-bold text-text-secondary uppercase tracking-wider shrink-0">Linked set:</span>
+                <span className="text-[9px] font-bold text-text-secondary uppercase tracking-wider shrink-0">{t("linkedSet", "analysis")}</span>
                 <button
                   onClick={() => setActiveId(id)}
                   className={`px-2.5 py-1 text-[11px] font-semibold border rounded-md transition-colors shrink-0 ${
@@ -939,7 +941,7 @@ export default function DocumentAnalysisPage() {
                       : "bg-white text-text-secondary border-border hover:text-primary"
                   }`}
                 >
-                  Main contract
+                  {t("mainContract", "analysis")}
                 </button>
                 {metadata.linked_docs.map((doc) => (
                   <button
@@ -960,21 +962,21 @@ export default function DocumentAnalysisPage() {
             {/* File display text area */}
             <div className="flex-1 overflow-y-auto p-10 font-serif text-[13.5px] leading-[1.8] text-primary select-text whitespace-pre-line relative selection:bg-primary-100">
               <div className="flex justify-between items-center text-[9px] text-text-muted font-sans border-b border-border/40 pb-3 mb-6 font-semibold uppercase tracking-wider select-none">
-                <span>Contract Analysis Workspace</span>
+                <span>{t("analysisWorkspace", "analysis")}</span>
                 <span>{metadata?.document_type || "NDA"}</span>
               </div>
               
               {documentText ? (
                 <p className="text-justify">{documentText}</p>
               ) : (
-                <p className="text-text-secondary text-center italic mt-16 font-sans text-xs">No text preview available.</p>
+                <p className="text-text-secondary text-center italic mt-16 font-sans text-xs">{t("noTextPreview", "analysis")}</p>
               )}
 
               <div className="h-24"></div>
 
               <div className="absolute bottom-6 left-10 right-10 flex justify-between items-center text-[9px] text-text-muted font-sans border-t border-border/40 pt-3 select-none">
-                <span>Parties: {metadata?.parties?.join(", ") || "Unknown"}</span>
-                <span>Effective: {metadata?.effective_date || "Unknown"}</span>
+                <span>{t("parties", "analysis")}: {metadata?.parties?.join(", ") || "Unknown"}</span>
+                <span>{t("effective", "analysis")}: {metadata?.effective_date || "Unknown"}</span>
               </div>
             </div>
           </div>
@@ -995,11 +997,11 @@ export default function DocumentAnalysisPage() {
             {/* Tabs Selector Bar */}
             <div className="flex border-b border-border bg-white shrink-0 overflow-x-auto select-none">
               {[
-                { id: "overview", label: "Overview & Risks", icon: AlertCircle },
-                { id: "chatbot", label: "AI Chatbot", icon: Bot },
-                { id: "discussion", label: "Discussion Thread", icon: MessageSquare },
-                { id: "notes", label: "Shared Notes", icon: FileText },
-                { id: "clauses", label: "Clauses", icon: Activity }
+                { id: "overview", label: t("overview", "analysis"), icon: AlertCircle },
+                { id: "chatbot", label: t("chatbot", "analysis"), icon: Bot },
+                { id: "discussion", label: t("discussion", "analysis"), icon: MessageSquare },
+                { id: "notes", label: t("notes", "analysis"), icon: FileText },
+                { id: "clauses", label: t("clauses", "analysis"), icon: Activity }
               ].map(tab => {
                 const Icon = tab.icon;
                 return (
@@ -1028,13 +1030,13 @@ export default function DocumentAnalysisPage() {
                   {/* Executive Tl;dr */}
                   <div className="bg-white border border-border rounded-lg p-5 shadow-xs space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Executive Summary</h4>
+                      <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">{t("executiveSummary", "analysis")}</h4>
                       <span className="text-[10px] bg-primary-100 text-primary font-bold px-2 py-0.5 rounded">
-                        Risk Level: {riskScore}/10.0
+                        {t("riskLevel", "analysis")}: {riskScore}/10.0
                       </span>
                     </div>
                     <p className="text-[12.5px] leading-relaxed text-primary">
-                      {summary?.tldr || summary?.main_summary || "No summary brief generated."}
+                      {summary?.tldr || summary?.main_summary || t("noSummary", "analysis")}
                     </p>
                   </div>
 
@@ -1044,10 +1046,10 @@ export default function DocumentAnalysisPage() {
                       <div className="flex items-center justify-between border-b border-amber-200/40 pb-2">
                         <h4 className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
                           <AlertCircle className="w-4 h-4 text-amber-600" />
-                          <span>Linked Documents Contradictions</span>
+                          <span>{t("linkedContradictions", "analysis")}</span>
                         </h4>
                         <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                          Index: {metadata.cross_contradictions.inconsistency_score}/10
+                          {t("conflictIndex", "analysis")}: {metadata.cross_contradictions.inconsistency_score}/10
                         </span>
                       </div>
                       
@@ -1062,7 +1064,7 @@ export default function DocumentAnalysisPage() {
                             </div>
                             <p className="text-[11.5px] text-text-secondary mt-1 leading-relaxed">{inc.description}</p>
                             {inc.affected_sections && (
-                              <p className="text-[9.5px] text-text-muted mt-2">Sections: {inc.affected_sections.join(", ")}</p>
+                              <p className="text-[9.5px] text-text-muted mt-2">{t("affectedSections", "splitView")} {inc.affected_sections.join(", ")}</p>
                             )}
                           </div>
                         ))}
@@ -1072,7 +1074,7 @@ export default function DocumentAnalysisPage() {
 
                   {/* Risks List */}
                   <div className="space-y-3">
-                    <h4 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">Identified Risk Findings</h4>
+                    <h4 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">{t("identifiedRisks", "analysis")}</h4>
                     {risks && risks.length > 0 ? (
                       risks.map((risk, index) => {
                         const isHigh = risk.severity?.toLowerCase() === "high";
@@ -1095,7 +1097,7 @@ export default function DocumentAnalysisPage() {
                         );
                       })
                     ) : (
-                      <p className="text-xs text-text-muted italic">No legal risks flagged in this contract.</p>
+                      <p className="text-xs text-text-muted italic">{t("noRisksFlagged", "analysis")}</p>
                     )}
                   </div>
                 </div>
@@ -1119,7 +1121,7 @@ export default function DocumentAnalysisPage() {
                               ? "bg-slate-50 border border-border text-primary rounded-tl-none" 
                               : "bg-primary text-white rounded-tr-none"
                           }`}>
-                            {renderFormattedContent(msg.content)}
+                            {msg.isError ? t("errorConnecting", "chatbot") : (msg.id === 1 ? t("chatbotGreeting", "analysis") : renderFormattedContent(msg.content))}
                           </div>
                           <div className={`text-[9px] text-text-muted ${msg.role === "assistant" ? "" : "text-right"}`}>{msg.time}</div>
                         </div>
@@ -1144,7 +1146,7 @@ export default function DocumentAnalysisPage() {
                   <form onSubmit={handleBotSend} className="flex gap-2 shrink-0 select-none">
                     <input
                       type="text"
-                      placeholder="Ask the AI about liabilities, compliance, or clauses..."
+                      placeholder={t("chatbotPlaceholder", "analysis")}
                       value={botInput}
                       onChange={(e) => setBotInput(e.target.value)}
                       disabled={botTyping}
@@ -1168,7 +1170,7 @@ export default function DocumentAnalysisPage() {
                   <div className="flex-1 overflow-y-auto space-y-4 pr-1 mb-4 bg-white border border-border rounded-lg p-4 min-h-0 select-text">
                     {chatMessages.length === 0 ? (
                       <div className="text-center py-12 text-text-muted italic text-[11px] font-sans">
-                        No messages exchanged on this agreement yet. Use this channel to converse with counsel.
+                        {t("chatEmpty", "analysis")}
                       </div>
                     ) : (
                       chatMessages.map(msg => {
@@ -1181,7 +1183,7 @@ export default function DocumentAnalysisPage() {
                               {msg.sender_name?.substring(0, 2).toUpperCase() || "ME"}
                             </div>
                             <div className="space-y-1">
-                              <span className="text-[9px] text-text-secondary font-semibold block">{msg.sender_name} ({msg.sender_role})</span>
+                              <span className="text-[9px] text-text-secondary font-semibold block">{msg.sender_name} ({msg.sender_role === "lawyer" ? t("lawyer", "login") : t("client", "login")})</span>
                               <div className={`p-3 rounded-md text-[12px] leading-relaxed shadow-xs ${
                                 isOwn 
                                   ? "bg-primary text-white rounded-tr-none" 
@@ -1206,7 +1208,7 @@ export default function DocumentAnalysisPage() {
                       <div className="flex items-center justify-between border-b border-purple-200/50 pb-1">
                         <span className="text-[11px] font-bold text-purple-900 flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
-                          <span>Request Consultation</span>
+                          <span>{t("meetingRequestTitle", "analysis")}</span>
                         </span>
                         <button type="button" onClick={() => setShowScheduleForm(false)} className="text-purple-900 text-xs">✕</button>
                       </div>
@@ -1214,7 +1216,7 @@ export default function DocumentAnalysisPage() {
                         <input
                           type="text"
                           required
-                          placeholder="e.g. Discuss Risk Exceptions"
+                          placeholder={t("topicPlaceholder", "appointments")}
                           value={meetTitle}
                           onChange={(e) => setMeetTitle(e.target.value)}
                           className="w-full px-2.5 py-1.5 border border-purple-200/60 rounded text-xs bg-white focus:outline-none"
@@ -1240,7 +1242,7 @@ export default function DocumentAnalysisPage() {
                         type="submit"
                         className="w-full py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-[11px] font-bold shadow-xs transition-colors"
                       >
-                        Request Appointment Card
+                        {t("requestApptCard", "analysis")}
                       </button>
                     </form>
                   )}
@@ -1251,7 +1253,7 @@ export default function DocumentAnalysisPage() {
                       <button
                         type="button"
                         onClick={() => setShowScheduleForm(!showScheduleForm)}
-                        title="Book appointment via messaging card"
+                        title={t("scheduleCallBtn", "analysis")}
                         className="p-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors shrink-0"
                       >
                         <Calendar className="w-4 h-4" />
@@ -1259,7 +1261,7 @@ export default function DocumentAnalysisPage() {
                     )}
                     <input
                       type="text"
-                      placeholder="Type a message to discuss changes..."
+                      placeholder={t("chatInputPlaceholderSec", "analysis")}
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       className="flex-1 px-3 py-2 border border-border rounded text-[13px] bg-white focus:outline-none focus:border-primary"
@@ -1281,17 +1283,17 @@ export default function DocumentAnalysisPage() {
                   {/* Notes Feed */}
                   <div className="flex-1 overflow-y-auto space-y-3 pr-1 bg-white border border-border rounded-lg p-4 min-h-0 select-text">
                     {loadingNotes ? (
-                      <div className="text-center py-6 text-xs text-text-secondary">Retrieving shared notes...</div>
+                      <div className="text-center py-6 text-xs text-text-secondary">{t("fetchingNotes", "notes")}</div>
                     ) : notes.length === 0 ? (
                       <div className="text-center py-10 text-text-muted italic text-[11px]">
-                        No shared notes created for this contract yet. Use the workspace notepad below.
+                        {t("notesShared", "analysis")}
                       </div>
                     ) : (
                       notes.map(note => (
                         <div key={note.id} className="p-3 bg-slate-50 border border-border rounded-lg relative group shadow-xs">
                           <p className="text-[12.5px] leading-relaxed text-primary whitespace-pre-wrap pr-6">{note.content}</p>
                           <div className="flex items-center gap-1.5 mt-2 text-[10px] text-text-muted font-sans border-t border-border/20 pt-1.5 select-none">
-                            <span>Author: {note.user_id === user?.id ? "Me" : "Partner"}</span>
+                            <span>{t("author", "analysis")}: {note.user_id === user?.id ? t("me", "analysis") : t("partner", "analysis")}</span>
                             <span>•</span>
                             <span>{note.created_at ? new Date(note.created_at).toLocaleDateString() : ""}</span>
                           </div>
@@ -1299,7 +1301,7 @@ export default function DocumentAnalysisPage() {
                             <button
                               onClick={() => handleDeleteNote(note.id)}
                               className="absolute right-2 top-2 text-text-muted hover:text-risk-red opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Delete note"
+                              title={t("delete", "notes")}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1312,7 +1314,7 @@ export default function DocumentAnalysisPage() {
                   {/* Add note input */}
                   <form onSubmit={handleAddNote} className="space-y-2 shrink-0 select-none">
                     <textarea
-                      placeholder="Add a shared note on this agreement..."
+                      placeholder={t("notesNotepad", "analysis")}
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       rows={2}
@@ -1324,7 +1326,7 @@ export default function DocumentAnalysisPage() {
                       className="w-full py-1.5 bg-primary hover:bg-primary-light text-white text-[11px] font-bold rounded flex items-center justify-center gap-1 disabled:opacity-50"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Save Note</span>
+                      <span>{t("saveNoteBtn", "analysis")}</span>
                     </button>
                   </form>
                 </div>
@@ -1335,7 +1337,7 @@ export default function DocumentAnalysisPage() {
                 <div className="space-y-5 select-text">
                   {/* Standard Clauses */}
                   <div className="space-y-3">
-                    <h4 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">Standard Clauses</h4>
+                    <h4 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">{t("standardClauses", "analysis")}</h4>
                     {clauses?.standard_clauses && clauses.standard_clauses.length > 0 ? (
                       clauses.standard_clauses.map((c, idx) => (
                         <div key={idx} className="bg-white border border-border p-3.5 rounded-lg shadow-xs space-y-1.5">
@@ -1344,13 +1346,13 @@ export default function DocumentAnalysisPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-xs text-text-muted italic">No standard clauses extracted.</p>
+                      <p className="text-xs text-text-muted italic">{t("noStdClauses", "analysis")}</p>
                     )}
                   </div>
 
                   {/* Non-Standard Clauses */}
                   <div className="space-y-3">
-                    <h4 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider text-risk-amber">Non-Standard Clauses</h4>
+                    <h4 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider text-risk-amber">{t("nonStandardClauses", "analysis")}</h4>
                     {clauses?.non_standard_clauses && clauses.non_standard_clauses.length > 0 ? (
                       clauses.non_standard_clauses.map((c, idx) => (
                         <div key={idx} className="bg-white border border-border p-3.5 rounded-lg shadow-xs space-y-1.5 border-l-4 border-l-risk-amber">
@@ -1359,7 +1361,7 @@ export default function DocumentAnalysisPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-xs text-text-muted italic">No non-standard clauses flagged.</p>
+                      <p className="text-xs text-text-muted italic">{t("noNonStdClauses", "analysis")}</p>
                     )}
                   </div>
                 </div>
@@ -1378,7 +1380,7 @@ export default function DocumentAnalysisPage() {
             <div className="p-5 border-b border-border flex items-center justify-between bg-slate-50">
               <h3 className="font-semibold text-primary text-[14px] flex items-center gap-1.5">
                 <Share2 className="w-4 h-4 text-primary" />
-                <span>Share Legal Document</span>
+                <span>{t("sharingWithClientTitle", "analysis")}</span>
               </h3>
               <button 
                 onClick={() => { setShowShareModal(false); setShareError(""); setShareSuccess(""); }}
@@ -1390,7 +1392,7 @@ export default function DocumentAnalysisPage() {
             
             <form onSubmit={handleShareSubmit} className="p-5 space-y-4">
               <p className="text-[12px] text-text-secondary leading-relaxed">
-                Enter your client's registered email. Once shared, the client can view this analysis in their read-only portal and coordinate messages with you.
+                {t("shareModalDesc", "analysis")}
               </p>
               
               {shareSuccess && (
@@ -1407,7 +1409,7 @@ export default function DocumentAnalysisPage() {
               )}
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-text-secondary uppercase">Client Email Address</label>
+                <label className="text-[11px] font-semibold text-text-secondary uppercase">{t("clientEmailLabel", "analysis")}</label>
                 <input
                   type="email"
                   required
@@ -1424,14 +1426,14 @@ export default function DocumentAnalysisPage() {
                   onClick={() => { setShowShareModal(false); setShareError(""); setShareSuccess(""); }}
                   className="px-3 py-2 border border-border rounded text-[12px] text-text-secondary hover:text-primary transition-colors"
                 >
-                  Cancel
+                  {t("cancel", "common")}
                 </button>
                 <button
                   type="submit"
                   disabled={sharing || !shareEmail.trim()}
                   className="px-4 py-2 bg-primary text-white rounded text-[12px] font-semibold hover:bg-primary-light transition-colors disabled:opacity-50"
                 >
-                  {sharing ? "Sharing..." : "Share Document"}
+                  {sharing ? t("sharingStatus", "analysis") : t("shareSubmitBtn", "analysis")}
                 </button>
               </div>
             </form>
@@ -1446,7 +1448,7 @@ export default function DocumentAnalysisPage() {
             <div className="p-5 border-b border-border flex items-center justify-between bg-slate-50">
               <h3 className="font-semibold text-primary text-[14px] flex items-center gap-1.5">
                 <Mail className="w-4 h-4 text-purple-600" />
-                <span>Export Brief to Email</span>
+                <span>{t("exportBriefTitle", "analysis")}</span>
               </h3>
               <button 
                 onClick={() => { setShowEmailModal(false); setEmailSuccess(""); }}
@@ -1458,18 +1460,18 @@ export default function DocumentAnalysisPage() {
             
             <form onSubmit={handleEmailExportSubmit} className="p-5 space-y-4">
               <p className="text-[12px] text-text-secondary leading-relaxed">
-                Send a summary audit brief of this contract's main terms, risk flags, and inconsistencies directly to your partner's inbox.
+                {t("exportBriefDesc", "analysis")}
               </p>
               
               {emailSuccess && (
                 <div className="p-3 bg-risk-green-light border border-risk-green/20 rounded flex items-center gap-2 text-[12px] text-risk-green">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{emailSuccess}</span>
+                  <span>{t("successExported", "analysis")}</span>
                 </div>
               )}
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-text-secondary uppercase">Recipient Email</label>
+                <label className="text-[11px] font-semibold text-text-secondary uppercase">{t("recipientEmailLabel", "analysis")}</label>
                 <input
                   type="email"
                   required
@@ -1486,7 +1488,7 @@ export default function DocumentAnalysisPage() {
                   onClick={() => { setShowEmailModal(false); setEmailSuccess(""); }}
                   className="px-3 py-2 border border-border rounded text-[12px] text-text-secondary hover:text-primary transition-colors"
                 >
-                  Cancel
+                  {t("cancel", "common")}
                 </button>
                 <button
                   type="submit"
@@ -1496,12 +1498,12 @@ export default function DocumentAnalysisPage() {
                   {sendingEmail ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Sending...</span>
+                      <span>{t("exportingStatus", "analysis")}</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Send Brief</span>
+                      <span>{t("exportSubmitBtn", "analysis")}</span>
                     </>
                   )}
                 </button>
@@ -1518,7 +1520,7 @@ export default function DocumentAnalysisPage() {
             <div className="p-5 border-b border-border flex items-center justify-between bg-slate-50">
               <h3 className="font-semibold text-primary text-[14px] flex items-center gap-1.5">
                 <Send className="w-4 h-4 text-emerald-600" />
-                <span>Send Analysis to Lawyer Chat</span>
+                <span>{t("sendToLawyerTitle", "analysis")}</span>
               </h3>
               <button 
                 onClick={() => { setShowShareChatModal(false); setShareChatError(""); setShareChatSuccess(""); setNeedsBooking(false); }}
@@ -1547,20 +1549,20 @@ export default function DocumentAnalysisPage() {
                   <div className="bg-amber-50 border border-amber-200/50 p-3.5 rounded text-[12px] text-amber-800 leading-relaxed space-y-1">
                     <span className="font-bold flex items-center gap-1">
                       <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>No Consultation Booked</span>
+                      <span>{t("noApptFoundTitle", "analysis")}</span>
                     </span>
-                    <p>To share this document's analysis with a lawyer, you must have an active or upcoming consultation scheduled. Please schedule a slot below to complete sharing.</p>
+                    <p>{t("noUpcomingConsultationDesc", "analysis")}</p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-text-secondary uppercase">Select Lawyer</label>
+                    <label className="text-[10px] font-bold text-text-secondary uppercase">{t("chooseLawyerLabel", "analysis")}</label>
                     <select
                       required
                       value={selectedLawyerId}
                       onChange={(e) => setSelectedLawyerId(e.target.value)}
                       className="w-full px-3 py-2 border border-border rounded text-[13px] bg-background focus:outline-none focus:border-primary transition-colors"
                     >
-                      <option value="">Choose Counsel...</option>
+                      <option value="">{t("chooseCounsel", "analysis")}</option>
                       {lawyersList.map(l => (
                         <option key={l.id} value={l.id}>{l.name} {l.specialty ? `(${l.specialty})` : ""}</option>
                       ))}
@@ -1569,7 +1571,7 @@ export default function DocumentAnalysisPage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-text-secondary uppercase">Select Date</label>
+                      <label className="text-[10px] font-bold text-text-secondary uppercase">{t("selectDateLabel", "analysis")}</label>
                       <input
                         type="date"
                         required
@@ -1579,14 +1581,14 @@ export default function DocumentAnalysisPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-text-secondary uppercase">Select Time Slot</label>
+                      <label className="text-[10px] font-bold text-text-secondary uppercase">{t("selectTimeSlot", "appointments")}</label>
                       <select
                         required
                         value={bookingTime}
                         onChange={(e) => setBookingTime(e.target.value)}
                         className="w-full px-3 py-2 border border-border rounded text-[13px] bg-white focus:outline-none focus:border-primary transition-all"
                       >
-                        <option value="">Slot...</option>
+                        <option value="">{t("slotSelect", "analysis")}</option>
                         {bookingSlots.map((s, idx) => (
                           <option key={idx} value={s}>{s}</option>
                         ))}
@@ -1600,7 +1602,7 @@ export default function DocumentAnalysisPage() {
                       onClick={() => { setShowShareChatModal(false); setNeedsBooking(false); }}
                       className="px-3 py-2 border border-border rounded text-[12px] text-text-secondary hover:text-primary transition-colors"
                     >
-                      Cancel
+                      {t("cancel", "common")}
                     </button>
                     <button
                       type="submit"
@@ -1610,12 +1612,12 @@ export default function DocumentAnalysisPage() {
                       {sharingToChat ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Scheduling...</span>
+                          <span>{t("sharingStatus", "analysis")}</span>
                         </>
                       ) : (
                         <>
                           <Calendar className="w-3.5 h-3.5" />
-                          <span>Schedule & Send</span>
+                          <span>{t("scheduleAndSend", "analysis")}</span>
                         </>
                       )}
                     </button>
@@ -1626,7 +1628,7 @@ export default function DocumentAnalysisPage() {
                   <div className="flex justify-center">
                     <RefreshCw className="w-8 h-8 text-primary animate-spin" />
                   </div>
-                  <p className="text-[13px] text-text-secondary">Checking existing consultation details and matching counsel...</p>
+                  <p className="text-[13px] text-text-secondary">{t("checkingApptStatus", "analysis")}</p>
                 </div>
               )}
             </div>

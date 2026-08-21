@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
 import { useAuth } from "@/lib/AuthContext";
+import { useTranslation } from "@/lib/LanguageContext";
 import { listAnalyses } from "@/lib/api";
 import { 
   FileText, 
@@ -17,6 +18,7 @@ import {
 export default function DocumentLibrary() {
   const navigate = useNavigate();
   const { userRole } = useAuth();
+  const { t } = useTranslation();
   const [analyses, setAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,7 +47,7 @@ export default function DocumentLibrary() {
   });
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return "Unknown";
+    if (!dateStr) return t("unknown", "library");
     return new Date(dateStr).toLocaleDateString("en-US", {
       month: "short", day: "numeric", year: "numeric"
     });
@@ -56,9 +58,9 @@ export default function DocumentLibrary() {
       <div className="space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-primary">Document Library</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-primary">{t("title", "library")}</h1>
             <p className="text-[13px] text-text-secondary">
-              Browse and manage all analyzed legal documents.
+              {t("subtitle", "library")}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -66,7 +68,7 @@ export default function DocumentLibrary() {
               <Search className="w-4 h-4 text-text-muted absolute left-3 top-2" />
               <input
                 type="text"
-                placeholder="Search documents..."
+                placeholder={t("searchPlaceholder", "library")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 pr-3 py-1.5 border border-border rounded text-[13px] text-primary placeholder-text-muted focus:outline-none focus:border-primary bg-white w-64"
@@ -92,7 +94,7 @@ export default function DocumentLibrary() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
               >
                 <Upload className="w-4 h-4" />
-                <span>Upload</span>
+                <span>{t("upload", "library")}</span>
               </button>
             )}
           </div>
@@ -106,21 +108,21 @@ export default function DocumentLibrary() {
           <div className="bg-white border border-border rounded p-16 flex flex-col items-center justify-center text-center shadow-sm">
             <FileText className="w-12 h-12 text-text-muted mb-4" />
             <h3 className="font-semibold text-[15px] text-primary mb-1">
-              {searchTerm ? "No documents found" : userRole === "client" ? "No shared documents" : "Your library is empty"}
+              {searchTerm ? t("noDocsFound", "library") : userRole === "client" ? t("noDocsShared", "library") : t("emptyLibrary", "library")}
             </h3>
             <p className="text-[13px] text-text-secondary max-w-md">
               {searchTerm 
-                ? "Try a different search term."
+                ? t("tryDifferentSearch", "library")
                 : userRole === "client"
-                  ? "No documents have been shared with you yet. Ask your lawyer to share documents via the analysis page."
-                  : "Upload your first document to start building your legal document library."}
+                  ? t("clientNoDocs", "library")
+                  : t("lawyerNoDocs", "library")}
             </p>
             {!searchTerm && userRole !== "client" && (
               <button
                 onClick={() => navigate("/upload")}
                 className="mt-4 px-5 py-2 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
               >
-                Upload First Document
+                {t("uploadFirst", "library")}
               </button>
             )}
           </div>
@@ -133,7 +135,7 @@ export default function DocumentLibrary() {
                 : riskScore >= 3
                   ? "bg-risk-amber-light text-risk-amber border-risk-amber/10"
                   : "bg-risk-green-light text-risk-green border-risk-green/10";
-              const statusLabel = riskScore >= 6 ? "High Risk" : riskScore >= 3 ? "Moderate" : "Low Risk";
+              const statusLabel = riskScore >= 6 ? t("highRisk", "library") : riskScore >= 3 ? t("modRisk", "library") : t("lowRisk", "library");
 
               return (
                 <div
@@ -151,9 +153,9 @@ export default function DocumentLibrary() {
                       </span>
                     </div>
                     <h4 className="font-semibold text-[13px] text-primary leading-snug truncate">
-                      {item.filename || "Untitled Document"}
+                      {item.filename || t("untitledDoc", "library")}
                     </h4>
-                    <p className="text-[11px] text-text-secondary mt-1">{item.document_type || "Unknown Type"}</p>
+                    <p className="text-[11px] text-text-secondary mt-1">{item.document_type || t("unknownType", "library")}</p>
                   </div>
                   
                   <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[10px]">
@@ -162,7 +164,7 @@ export default function DocumentLibrary() {
                       <span>{formatDate(item.created_at)}</span>
                     </div>
                     <span className={`font-bold ${riskScore >= 6 ? "text-risk-red" : riskScore >= 3 ? "text-risk-amber" : "text-risk-green"}`}>
-                      Score: {riskScore.toFixed(1)}
+                      {t("score", "library")} {riskScore.toFixed(1)}
                     </span>
                   </div>
                 </div>
@@ -186,8 +188,8 @@ export default function DocumentLibrary() {
                         <FileText className="w-3.5 h-3.5 text-primary" />
                       </div>
                       <div>
-                        <span className="text-[13px] font-medium text-primary">{item.filename || "Untitled"}</span>
-                        <span className="text-[11px] text-text-secondary ml-3">{item.document_type || "Unknown"}</span>
+                        <span className="text-[13px] font-medium text-primary">{item.filename || t("untitled", "library")}</span>
+                        <span className="text-[11px] text-text-secondary ml-3">{item.document_type || t("unknown", "library")}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">

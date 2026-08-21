@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
+import { useTranslation } from "@/lib/LanguageContext";
 import { 
   getAnalysisText, 
   getAnalysis, 
@@ -25,6 +26,7 @@ import {
 export default function SplitViewPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { lang, t } = useTranslation();
   
   // Doc selection
   const [documents, setDocuments] = useState([]);
@@ -169,7 +171,7 @@ export default function SplitViewPage() {
       setCrossContradictions(data);
     } catch (err) {
       console.error("Comparison failed:", err);
-      alert("Failed to compare documents. Verify backend services are active.");
+      alert(t("comparisonFailed", "splitView"));
     } finally {
       setLoadingComparison(false);
     }
@@ -249,7 +251,7 @@ export default function SplitViewPage() {
 
   const getDocName = (docId) => {
     const doc = documents.find(d => d.document_id === docId);
-    return doc ? doc.filename : "Select contract...";
+    return doc ? doc.filename : t("selectContractB", "splitView");
   };
 
   return (
@@ -261,7 +263,7 @@ export default function SplitViewPage() {
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {/* Document A Selector */}
             <div className="flex items-center gap-1.5 bg-background border border-border px-2 py-1 rounded">
-              <span className="text-[11px] font-semibold text-text-secondary uppercase">Doc A:</span>
+              <span className="text-[11px] font-semibold text-text-secondary uppercase">{t("docA", "splitView")}</span>
               <select 
                 value={docAId}
                 onChange={(e) => setDocAId(e.target.value)}
@@ -275,7 +277,7 @@ export default function SplitViewPage() {
 
             {/* Document B Selector */}
             <div className="flex items-center gap-1.5 bg-background border border-border px-2 py-1 rounded">
-              <span className="text-[11px] font-semibold text-text-secondary uppercase">Doc B:</span>
+              <span className="text-[11px] font-semibold text-text-secondary uppercase">{t("docB", "splitView")}</span>
               <select 
                 value={docBId}
                 onChange={(e) => {
@@ -285,7 +287,7 @@ export default function SplitViewPage() {
                 disabled={rightMode === "analysis"}
                 className="bg-transparent text-[12px] font-medium text-primary focus:outline-none max-w-[160px] disabled:opacity-50"
               >
-                <option value="">(None)</option>
+                <option value="">{t("noneOption", "splitView")}</option>
                 {documents.filter(d => d.document_id !== docAId).map(d => (
                   <option key={d.document_id} value={d.document_id}>{d.filename}</option>
                 ))}
@@ -295,13 +297,13 @@ export default function SplitViewPage() {
             {/* Document C Selector */}
             {rightMode === "document" && (
               <div className="flex items-center gap-1.5 bg-background border border-border px-2 py-1 rounded animate-in fade-in duration-200">
-                <span className="text-[11px] font-semibold text-text-secondary uppercase">Doc C:</span>
+                <span className="text-[11px] font-semibold text-text-secondary uppercase">{t("docC", "splitView")}</span>
                 <select 
                   value={docCId}
                   onChange={(e) => setDocCId(e.target.value)}
                   className="bg-transparent text-[12px] font-medium text-primary focus:outline-none max-w-[160px]"
                 >
-                  <option value="">(None)</option>
+                  <option value="">{t("noneOption", "splitView")}</option>
                   {documents.filter(d => d.document_id !== docAId && d.document_id !== docBId).map(d => (
                     <option key={d.document_id} value={d.document_id}>{d.filename}</option>
                   ))}
@@ -317,7 +319,7 @@ export default function SplitViewPage() {
                 onChange={() => setSyncScroll(!syncScroll)}
                 className="rounded border-border focus:ring-primary text-primary"
               />
-              <span>Synchronize Scroll</span>
+              <span>{t("syncScroll", "splitView")}</span>
             </label>
           </div>
 
@@ -331,7 +333,7 @@ export default function SplitViewPage() {
                 }`}
               >
                 <Columns className="w-3.5 h-3.5" />
-                <span>Side-by-Side</span>
+                <span>{t("sideBySide", "splitView")}</span>
               </button>
               <button 
                 onClick={() => {
@@ -343,7 +345,7 @@ export default function SplitViewPage() {
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5" />
-                <span>Doc vs Analysis</span>
+                <span>{t("docVsAnalysis", "splitView")}</span>
               </button>
             </div>
 
@@ -355,7 +357,7 @@ export default function SplitViewPage() {
                 className="px-3 py-1.5 bg-primary text-white hover:bg-primary-light text-[11px] font-semibold rounded flex items-center gap-1.5 transition-colors disabled:opacity-50"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>{loadingComparison ? "Comparing..." : "Cross-Compare Docs"}</span>
+                <span>{loadingComparison ? t("comparing", "splitView") : t("crossCompare", "splitView")}</span>
               </button>
             )}
           </div>
@@ -381,7 +383,7 @@ export default function SplitViewPage() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
                 <input
                   type="text"
-                  placeholder="Find text..."
+                  placeholder={t("findPlaceholder", "splitView")}
                   value={searchQueryA}
                   onChange={(e) => setSearchQueryA(e.target.value)}
                   className="w-full pl-7 pr-2 py-1 border border-border rounded text-[11px] bg-white focus:outline-none"
@@ -401,7 +403,7 @@ export default function SplitViewPage() {
                 </div>
               ) : (
                 renderHighlightedText(docAText, searchQueryA) || (
-                  <p className="text-text-muted text-center italic mt-12">No document text loaded.</p>
+                  <p className="text-text-muted text-center italic mt-12">{t("noDocText", "splitView")}</p>
                 )
               )}
             </div>
@@ -420,7 +422,7 @@ export default function SplitViewPage() {
           {/* RIGHT PANE - Document B Content OR Document A Analysis */}
           <div 
             style={!docCId ? { width: `${100 - leftWidth}%` } : {}}
-            className={`flex flex-col h-full min-w-0 ${docCId ? "flex-1 border-l border-border" : ""}`}
+            className={`flex flex-col h-full min-w-0 ${docCId ? "flex-1" : ""}`}
           >
             {rightMode === "document" ? (
               // Document vs Document Mode
@@ -430,7 +432,7 @@ export default function SplitViewPage() {
                   <div className="flex items-center gap-2 min-w-0">
                     <FileText className="w-4 h-4 text-primary shrink-0" />
                     <span className="text-[12px] font-bold text-primary truncate">
-                      {docBId ? getDocName(docBId) : "Select Contract B"}
+                      {docBId ? getDocName(docBId) : t("selectContractB", "splitView")}
                     </span>
                   </div>
                   {docBId && (
@@ -438,7 +440,7 @@ export default function SplitViewPage() {
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
                       <input
                         type="text"
-                        placeholder="Find text..."
+                        placeholder={t("findPlaceholder", "splitView")}
                         value={searchQueryB}
                         onChange={(e) => setSearchQueryB(e.target.value)}
                         className="w-full pl-7 pr-2 py-1 border border-border rounded text-[11px] bg-white focus:outline-none"
@@ -461,13 +463,13 @@ export default function SplitViewPage() {
                     <div className="flex flex-col items-center justify-center h-full text-center p-6 text-text-secondary gap-3">
                       <Columns className="w-8 h-8 text-primary/30" />
                       <div>
-                        <p className="font-semibold text-[13px] text-primary">Compare Side-by-Side</p>
-                        <p className="text-[11px] mt-1">Select Document B in the dropdown above to load and compare texts side-by-side.</p>
+                        <p className="font-semibold text-[13px] text-primary">{t("sideBySide", "splitView")}</p>
+                        <p className="text-[11px] mt-1">{t("compareSideSubtitle", "splitView")}</p>
                       </div>
                     </div>
                   ) : (
                     renderHighlightedText(docBText, searchQueryB) || (
-                      <p className="text-text-muted text-center italic mt-12">No document text loaded.</p>
+                      <p className="text-text-muted text-center italic mt-12">{t("noDocText", "splitView")}</p>
                     )
                   )}
                 </div>
@@ -478,7 +480,7 @@ export default function SplitViewPage() {
                 <div className="p-3 bg-slate-50 border-b border-border flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-1.5">
                     <BookOpen className="w-4 h-4 text-primary" />
-                    <span className="text-[12px] font-bold text-primary">Analysis Dashboard (Doc A)</span>
+                    <span className="text-[12px] font-bold text-primary">{t("analysisDashboard", "splitView")}</span>
                   </div>
                 </div>
 
@@ -488,12 +490,12 @@ export default function SplitViewPage() {
                       <RefreshCw className="w-5 h-5 text-primary animate-spin" />
                     </div>
                   ) : !docAAnalysis ? (
-                    <p className="text-text-secondary text-center italic mt-12 text-[12px]">Load Doc A to see analysis.</p>
+                    <p className="text-text-secondary text-center italic mt-12 text-[12px]">{t("loadDocASeeAnalysis", "splitView")}</p>
                   ) : (
                     <div className="space-y-6">
                       {/* Summary Card */}
                       <div className="border border-border rounded p-4 bg-primary-50/20">
-                        <h4 className="text-[12px] font-bold text-primary uppercase mb-2">Executive Summary</h4>
+                        <h4 className="text-[12px] font-bold text-primary uppercase mb-2">{t("execSummary", "splitView")}</h4>
                         <p className="text-[13px] leading-relaxed text-text-primary">
                           {docAAnalysis.summary?.main_summary}
                         </p>
@@ -501,7 +503,7 @@ export default function SplitViewPage() {
 
                       {/* Risks Counter Card */}
                       <div className="border border-border rounded p-4">
-                        <h4 className="text-[12px] font-bold text-primary uppercase mb-3">Flagged Risks</h4>
+                        <h4 className="text-[12px] font-bold text-primary uppercase mb-3">{t("flaggedRisks", "splitView")}</h4>
                         {docAAnalysis.risks && docAAnalysis.risks.length > 0 ? (
                           <div className="space-y-2.5">
                             {docAAnalysis.risks.map((risk, idx) => (
@@ -520,23 +522,23 @@ export default function SplitViewPage() {
                                 <p className="text-[11px] text-text-secondary leading-relaxed mt-0.5">{risk.description}</p>
                                 {risk.mitigation && (
                                   <div className="mt-2 text-[10.5px] border-t border-dashed border-border pt-1.5 text-primary">
-                                    <span className="font-semibold text-[10px] uppercase text-risk-green">Mitigation:</span> {risk.mitigation}
+                                    <span className="font-semibold text-[10px] uppercase text-risk-green">{t("mitigationLabel", "splitView")}</span> {risk.mitigation}
                                   </div>
                                 )}
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-[12px] text-text-secondary italic">No specific risk flags detected.</p>
+                          <p className="text-[12px] text-text-secondary italic">{t("noRisks", "splitView")}</p>
                         )}
                       </div>
 
                       {/* Inconsistency Score Card */}
                       <div className="border border-border rounded p-4 bg-background">
                         <h4 className="text-[12px] font-bold text-primary uppercase mb-3 flex items-center justify-between">
-                          <span>Internal Inconsistencies</span>
+                          <span>{t("internalInconsistencies", "splitView")}</span>
                           <span className="text-[11px] px-2 py-0.5 rounded bg-primary-100 text-primary font-semibold">
-                            Risk: {docAAnalysis.inconsistency_score ?? "0.0"}/10
+                            {t("riskScoreLabel", "splitView")} {docAAnalysis.inconsistency_score ?? "0.0"}/10
                           </span>
                         </h4>
                         {docAAnalysis.inconsistencies && docAAnalysis.inconsistencies.length > 0 ? (
@@ -549,7 +551,7 @@ export default function SplitViewPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-[12px] text-text-secondary italic">No internal contradictions found.</p>
+                          <p className="text-[12px] text-text-secondary italic">{t("noInconsistencies", "splitView")}</p>
                         )}
                       </div>
                     </div>
@@ -574,7 +576,7 @@ export default function SplitViewPage() {
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
                   <input
                     type="text"
-                    placeholder="Find text..."
+                    placeholder={t("findPlaceholder", "splitView")}
                     value={searchQueryC}
                     onChange={(e) => setSearchQueryC(e.target.value)}
                     className="w-full pl-7 pr-2 py-1 border border-border rounded text-[11px] bg-white focus:outline-none"
@@ -594,7 +596,7 @@ export default function SplitViewPage() {
                   </div>
                 ) : (
                   renderHighlightedText(docCText, searchQueryC) || (
-                    <p className="text-text-muted text-center italic mt-12">No document text loaded.</p>
+                    <p className="text-text-muted text-center italic mt-12">{t("noDocText", "splitView")}</p>
                   )
                 )}
               </div>
@@ -607,10 +609,10 @@ export default function SplitViewPage() {
           <div className="bg-slate-50 border border-border rounded-lg p-5 shrink-0 shadow-sm max-h-60 overflow-y-auto">
             <h3 className="font-bold text-[13px] text-primary flex items-center gap-1.5 mb-3 border-b border-border pb-2">
               <Sparkles className="w-4 h-4 text-primary shrink-0" />
-              <span>Cross-Document Inconsistency Report</span>
+              <span>{t("reportTitle", "splitView")}</span>
               {crossContradictions && (
                 <span className="ml-auto text-[11px] px-2 py-0.5 bg-risk-amber-light text-risk-amber border border-risk-amber/20 rounded font-semibold">
-                  Conflict Index: {crossContradictions.inconsistency_score}/10
+                  {t("conflictIndex", "splitView")} {crossContradictions.inconsistency_score}/10
                 </span>
               )}
             </h3>
@@ -618,7 +620,7 @@ export default function SplitViewPage() {
             {loadingComparison ? (
               <div className="flex items-center gap-2 py-4 justify-center text-[12px] text-text-secondary">
                 <RefreshCw className="w-4 h-4 text-primary animate-spin" />
-                <span>Running deep comparison agent...</span>
+                <span>{t("runningDeepComparison", "splitView")}</span>
               </div>
             ) : crossContradictions?.inconsistencies && crossContradictions.inconsistencies.length > 0 ? (
               <div className="space-y-3">
@@ -637,7 +639,7 @@ export default function SplitViewPage() {
                     </p>
                     {inc.affected_sections && inc.affected_sections.length > 0 && (
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className="text-[9px] font-bold text-text-secondary uppercase">Sections:</span>
+                        <span className="text-[9px] font-bold text-text-secondary uppercase">{t("affectedSections", "splitView")}</span>
                         {inc.affected_sections.map((sec, sIdx) => (
                           <span key={sIdx} className="text-[9px] font-semibold text-primary bg-primary-100/50 px-1.5 py-0.5 rounded">
                             {sec}
@@ -649,7 +651,7 @@ export default function SplitViewPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-[12px] text-text-secondary italic text-center py-4">No cross-document inconsistencies detected. The documents appear mutually consistent.</p>
+              <p className="text-[12px] text-text-secondary italic text-center py-4">{t("noCrossInconsistencies", "splitView")}</p>
             )}
           </div>
         )}

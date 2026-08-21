@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Shell from "@/components/layout/Shell";
 import { useAuth } from "@/lib/AuthContext";
+import { useTranslation } from "@/lib/LanguageContext";
 import { getContacts, getDirectMessages, sendDirectMessage } from "@/lib/api";
 import { 
   MessageSquare, 
@@ -168,6 +169,7 @@ const renderFormattedContent = (content) => {
 
 export default function MessagingPage() {
   const { user, userRole } = useAuth();
+  const { t } = useTranslation();
   
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
@@ -254,8 +256,8 @@ export default function MessagingPage() {
     const now = new Date();
     const diffMs = now - d;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffHours < 1) return "Just now";
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 1) return t("justNow", "dashboard");
+    if (diffHours < 24) return `${diffHours}${t("hoursAgo", "dashboard")}`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
@@ -267,11 +269,11 @@ export default function MessagingPage() {
         
         {/* Page Header */}
         <div className="mb-4">
-          <h1 className="text-2xl font-bold tracking-tight text-primary">Messages</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-primary">{t("title", "messaging")}</h1>
           <p className="text-[13px] text-text-secondary">
             {userRole === "client" 
-              ? "Chat directly with lawyers connected through your appointments." 
-              : "Communicate with clients who have booked consultations with you."}
+              ? t("subtitleClient", "messaging") 
+              : t("subtitleLawyer", "messaging")}
           </p>
         </div>
 
@@ -286,7 +288,7 @@ export default function MessagingPage() {
                 <Search className="w-3.5 h-3.5 text-text-muted absolute left-2.5 top-2.5" />
                 <input
                   type="text"
-                  placeholder="Search contacts..."
+                  placeholder={t("searchPlaceholder", "messaging")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 text-[12px] border border-border rounded bg-slate-50 focus:outline-none focus:border-primary placeholder-text-muted"
@@ -299,16 +301,16 @@ export default function MessagingPage() {
               {loadingContacts ? (
                 <div className="p-8 flex flex-col items-center justify-center">
                   <RefreshCw className="w-5 h-5 text-primary animate-spin mb-2" />
-                  <span className="text-[11px] text-text-secondary">Loading contacts...</span>
+                  <span className="text-[11px] text-text-secondary">{t("loadingContacts", "messaging")}</span>
                 </div>
               ) : filteredContacts.length === 0 ? (
                 <div className="p-8 flex flex-col items-center justify-center text-center">
                   <Users className="w-8 h-8 text-text-muted mb-3" />
-                  <h3 className="font-semibold text-[13px] text-primary mb-1">No Contacts Yet</h3>
+                  <h3 className="font-semibold text-[13px] text-primary mb-1">{t("noContactsYet", "messaging")}</h3>
                   <p className="text-[11px] text-text-secondary max-w-[200px] leading-relaxed">
                     {userRole === "client"
-                      ? "Schedule a consultation with a lawyer from the Appointments page to start messaging."
-                      : "Contacts will appear here once clients book appointments with you."}
+                      ? t("clientNoContacts", "messaging")
+                      : t("lawyerNoContacts", "messaging")}
                   </p>
                 </div>
               ) : (
@@ -328,7 +330,7 @@ export default function MessagingPage() {
                     <div className="min-w-0 flex-1">
                       <h4 className="font-semibold text-[12.5px] text-primary truncate">{contact.name}</h4>
                       <p className="text-[10px] text-text-secondary truncate">
-                        {contact.role === "lawyer" ? contact.specialty || "Legal Counsel" : "Client"}
+                        {contact.role === "lawyer" ? contact.specialty || t("counselRole", "settings") : t("clientRole", "settings")}
                       </p>
                     </div>
                   </button>
@@ -345,9 +347,9 @@ export default function MessagingPage() {
                 <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mb-4">
                   <MessageSquare className="w-7 h-7 text-primary" />
                 </div>
-                <h3 className="font-bold text-[15px] text-primary mb-1">Select a Conversation</h3>
+                <h3 className="font-bold text-[15px] text-primary mb-1">{t("selectConversation", "messaging")}</h3>
                 <p className="text-[12px] text-text-secondary max-w-sm leading-relaxed">
-                  Choose a contact from the left panel to start or continue a conversation.
+                  {t("chooseContact", "messaging")}
                 </p>
               </div>
             ) : (
@@ -360,7 +362,7 @@ export default function MessagingPage() {
                   <div>
                     <h3 className="font-bold text-[13px] text-primary">{selectedContact.name}</h3>
                     <p className="text-[10px] text-text-secondary">
-                      {selectedContact.role === "lawyer" ? selectedContact.specialty || "Legal Counsel" : "Client"} · {selectedContact.email}
+                      {selectedContact.role === "lawyer" ? selectedContact.specialty || t("counselRole", "settings") : t("clientRole", "settings")} · {selectedContact.email}
                     </p>
                   </div>
                 </div>
@@ -375,7 +377,7 @@ export default function MessagingPage() {
                     <div className="flex flex-col items-center justify-center py-16 text-center">
                       <MessageSquare className="w-8 h-8 text-text-muted mb-2" />
                       <p className="text-[12px] text-text-secondary">
-                        No messages yet. Start the conversation!
+                        {t("noMessagesYet", "messaging")}
                       </p>
                     </div>
                   ) : (
@@ -398,7 +400,7 @@ export default function MessagingPage() {
                             </div>
                             <div className={`flex items-center gap-1.5 mt-1 px-1 ${isMine ? "justify-end" : ""}`}>
                               <span className="text-[9px] text-text-muted">
-                                {isMine ? "You" : msg.sender_name}
+                                {isMine ? t("you", "messaging") : msg.sender_name}
                               </span>
                               <span className="text-[9px] text-text-muted">·</span>
                               <span className="text-[9px] text-text-muted">
@@ -419,7 +421,7 @@ export default function MessagingPage() {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder={`Message ${selectedContact.name}...`}
+                    placeholder={t("messagePlaceholder", "messaging").replace("{name}", selectedContact.name)}
                     className="flex-1 px-4 py-2.5 border border-border rounded-full text-[13px] bg-slate-50 focus:outline-none focus:border-primary focus:bg-white transition-colors placeholder-text-muted"
                   />
                   <button
@@ -432,7 +434,7 @@ export default function MessagingPage() {
                     ) : (
                       <Send className="w-3.5 h-3.5" />
                     )}
-                    <span>Send</span>
+                    <span>{t("send", "messaging")}</span>
                   </button>
                 </form>
               </>

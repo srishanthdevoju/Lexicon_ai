@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "@/components/layout/Shell";
 import { useAuth } from "@/lib/AuthContext";
+import { useTranslation } from "@/lib/LanguageContext";
 import { listAnalyses } from "@/lib/api";
 import { 
   Clock, 
@@ -15,6 +16,7 @@ import {
 export default function HistoryPage() {
   const navigate = useNavigate();
   const { userRole } = useAuth();
+  const { t } = useTranslation();
   const [analyses, setAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,7 +44,7 @@ export default function HistoryPage() {
   });
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return "Unknown date";
+    if (!dateStr) return t("unknown", "library");
     return new Date(dateStr).toLocaleDateString("en-US", {
       month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
     });
@@ -53,9 +55,9 @@ export default function HistoryPage() {
       <div className="space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-primary">Analysis History</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-primary">{t("title", "history")}</h1>
             <p className="text-[13px] text-text-secondary">
-              Complete audit trail of all document analyses performed.
+              {t("subtitle", "history")}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -63,7 +65,7 @@ export default function HistoryPage() {
               <Search className="w-4 h-4 text-text-muted absolute left-3 top-2" />
               <input
                 type="text"
-                placeholder="Search documents..."
+                placeholder={t("searchPlaceholder", "history")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 pr-3 py-1.5 border border-border rounded text-[13px] text-primary placeholder-text-muted focus:outline-none focus:border-primary bg-white w-64"
@@ -76,12 +78,12 @@ export default function HistoryPage() {
         <div className="bg-white border border-border rounded shadow-sm overflow-hidden">
           {/* Table Header */}
           <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-border bg-primary-50/30 text-[10px] font-bold text-text-secondary uppercase tracking-wider">
-            <span className="col-span-4">Document</span>
-            <span className="col-span-2">Type</span>
-            <span className="col-span-1">Risk Score</span>
-            <span className="col-span-1">Notes</span>
-            <span className="col-span-2">Status</span>
-            <span className="col-span-2">Date</span>
+            <span className="col-span-4">{t("colDocument", "history")}</span>
+            <span className="col-span-2">{t("colType", "history")}</span>
+            <span className="col-span-1">{t("colRiskScore", "history")}</span>
+            <span className="col-span-1">{t("colNotes", "history")}</span>
+            <span className="col-span-2">{t("colStatus", "history")}</span>
+            <span className="col-span-2">{t("colDate", "history")}</span>
           </div>
 
           {loading ? (
@@ -93,17 +95,17 @@ export default function HistoryPage() {
               <Clock className="w-8 h-8 text-text-muted mb-2" />
               <p className="text-[13px] text-text-secondary">
                 {searchTerm 
-                  ? "No documents match your search." 
+                  ? t("noDocsFound", "history") 
                   : userRole === "client"
-                    ? "No documents have been shared with you yet. Ask your lawyer to share documents via the analysis page."
-                    : "No analysis history yet."}
+                    ? t("clientNoDocs", "history")
+                    : t("emptyHistory", "history")}
               </p>
               {!searchTerm && userRole !== "client" && (
                 <button
                   onClick={() => navigate("/upload")}
                   className="mt-3 px-4 py-2 bg-primary text-white text-[13px] font-medium rounded hover:bg-primary-light transition-colors"
                 >
-                  Upload a Document
+                  {t("uploadDoc", "history")}
                 </button>
               )}
             </div>
@@ -127,10 +129,10 @@ export default function HistoryPage() {
                       <div className="w-8 h-8 rounded bg-primary-100 flex items-center justify-center shrink-0">
                         <FileText className="w-3.5 h-3.5 text-primary" />
                       </div>
-                      <span className="text-[13px] font-medium text-primary truncate">{item.filename || "Untitled"}</span>
+                      <span className="text-[13px] font-medium text-primary truncate">{item.filename || t("untitled", "library")}</span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-[12px] text-text-secondary">{item.document_type || "Unknown"}</span>
+                      <span className="text-[12px] text-text-secondary">{item.document_type || t("unknown", "library")}</span>
                     </div>
                     <div className="col-span-1">
                       <span className={`text-[13px] font-semibold ${riskScore >= 6 ? "text-risk-red" : riskScore >= 3 ? "text-risk-amber" : "text-risk-green"}`}>
@@ -144,7 +146,7 @@ export default function HistoryPage() {
                     </div>
                     <div className="col-span-2">
                       <span className={`px-2 py-0.5 text-[10px] font-semibold rounded border uppercase tracking-wider ${statusColor}`}>
-                        {item.status || "completed"}
+                        {item.status || t("completed", "library")}
                       </span>
                     </div>
                     <div className="col-span-2 flex items-center justify-between">
