@@ -1,12 +1,22 @@
 import os
 import json
 import time
+import uuid
 import logging
 import asyncio
 from supabase import create_client, Client
 from app.core.config import settings, dotenv_path
 
 logger = logging.getLogger(__name__)
+
+def is_valid_uuid(val: str) -> bool:
+    if not val:
+        return False
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
 
 class MissingDBCredentialsError(ValueError):
     pass
