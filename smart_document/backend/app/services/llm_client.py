@@ -37,7 +37,7 @@ class LLMClient:
 
         api_key_raw = os.getenv("GROQ_API_KEY", settings.GROQ_API_KEY) or os.getenv("OPENAI_API_KEY", "")
         self.api_keys = [k.strip() for k in api_key_raw.split(",") if k.strip()]
-        self.model = os.getenv("GROQ_MODEL", settings.GROQ_MODEL) or os.getenv("OPENAI_MODEL", "") or "llama-3.1-8b-instant"
+        self.model = os.getenv("GROQ_MODEL", settings.GROQ_MODEL) or os.getenv("OPENAI_MODEL", "") or "openai/gpt-oss-120b"
         self.base_url = os.getenv("GROQ_BASE_URL", settings.GROQ_BASE_URL) or os.getenv("OPENAI_BASE_URL", "")
         self._client = None
 

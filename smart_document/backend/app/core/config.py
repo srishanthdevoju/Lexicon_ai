@@ -9,7 +9,7 @@ load_dotenv(dotenv_path)
 
 class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
     GROQ_BASE_URL: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
